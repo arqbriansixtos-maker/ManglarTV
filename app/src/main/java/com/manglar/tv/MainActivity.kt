@@ -10,7 +10,9 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayInputStream
@@ -20,9 +22,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var fullscreenContainer: FrameLayout
     private lateinit var progressBar: ProgressBar
+    private lateinit var tvControls: LinearLayout
+    private lateinit var btnPlayPause: Button
+    private lateinit var btnFullscreen: Button
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
+    private var controlsVisible = false
 
     private val targetUrl = "https://manglarpelis.manglar.fun/"
 
@@ -147,9 +153,66 @@ class MainActivity : AppCompatActivity() {
         webView = findViewById(R.id.webView)
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
         progressBar = findViewById(R.id.progressBar)
+        tvControls = findViewById(R.id.tvControls)
+        btnPlayPause = findViewById(R.id.btnPlayPause)
+        btnFullscreen = findViewById(R.id.btnFullscreen)
+
+        btnPlayPause.setOnClickListener {
+            webView.evaluateJavascript(
+                """
+                (function() {
+                    var v = document.querySelector('video');
+                    if (v) { if (v.paused) v.play(); else v.pause(); }
+                })();
+                """.trimIndent(), null
+            )
+            updatePlayPauseButton()
+        }
+
+        btnFullscreen.setOnClickListener {
+            toggleFullscreen()
+        }
 
         configurarWebView()
         webView.loadUrl(targetUrl)
+    }
+
+    private fun updatePlayPauseButton() {
+        webView.evaluateJavascript(
+            "(function(){ var v=document.querySelector('video'); return v && !v.paused; })();"
+        ) { result ->
+            val playing = result?.contains("true") == true
+            btnPlayPause.text = if (playing) "⏸" else "▶"
+        }
+    }
+
+    private fun toggleFullscreen() {
+        webView.evaluateJavascript(
+            """
+            (function() {
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    if (document.exitFullscreen) document.exitFullscreen();
+                    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                } else {
+                    var v = document.querySelector('video');
+                    var el = v ? (v.closest('.player, .video-player, [class*="player"], [id*="player"]') || v.parentElement || document.documentElement) : document.documentElement;
+                    if (el.requestFullscreen) el.requestFullscreen();
+                    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+                }
+            })();
+            """.trimIndent(), null
+        )
+    }
+
+    private fun showControls() {
+        controlsVisible = true
+        tvControls.visibility = View.VISIBLE
+        updatePlayPauseButton()
+    }
+
+    private fun hideControls() {
+        controlsVisible = false
+        tvControls.visibility = View.GONE
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -182,6 +245,7 @@ class MainActivity : AppCompatActivity() {
                 progressBar.visibility = View.GONE
                 inyectarBloqueoAds()
                 inyectarNavegacionTV()
+                inyectarAutoPlay()
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -452,8 +516,6 @@ class MainActivity : AppCompatActivity() {
                 style.id = '__tv_nav_style';
                 style.textContent = '\
                     .tv-focus{outline:4px solid #00e5ff !important;outline-offset:3px !important;border-radius:4px !important;box-shadow:0 0 12px rgba(0,229,255,0.5) !important;}\
-                    .tv-focus-scroll{scroll-behavior:smooth !important;}\
-                    *{scroll-behavior:auto !important;}\
                 ';
                 document.head.appendChild(style);
 
@@ -503,29 +565,13 @@ class MainActivity : AppCompatActivity() {
                         var p = centro(el);
                         var dx = p.x - origen.x;
                         var dy = p.y - origen.y;
-                        var angulo = Math.atan2(dy, dx) * 180 / Math.PI;
                         var dist = Math.sqrt(dx * dx + dy * dy);
 
                         var valido = false;
-                        var tolerancia = 45;
-
-                        if (direccion === 'up') {
-                            if (angulo < -90 + tolerancia && angulo > -90 - tolerancia) valido = true;
-                            if (angulo > 90 || angulo < -90) valido = false;
-                            if (dy < -10) valido = true;
-                        }
-                        if (direccion === 'down') {
-                            if (angulo > 90 - tolerancia && angulo < 90 + tolerancia) valido = true;
-                            if (dy > 10) valido = true;
-                        }
-                        if (direccion === 'left') {
-                            if (angulo > 180 - tolerancia || angulo < -180 + tolerancia) valido = true;
-                            if (dx < -10) valido = true;
-                        }
-                        if (direccion === 'right') {
-                            if (angulo < tolerancia && angulo > -tolerancia) valido = true;
-                            if (dx > 10) valido = true;
-                        }
+                        if (direccion === 'up' && dy < -10) valido = true;
+                        if (direccion === 'down' && dy > 10) valido = true;
+                        if (direccion === 'left' && dx < -10) valido = true;
+                        if (direccion === 'right' && dx > 10) valido = true;
 
                         if (!valido) return;
 
@@ -555,6 +601,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                window.showTvControls = function() {};
+
                 window.__tvNav = {
                     move: moverFoco,
                     click: function() {
@@ -582,11 +630,152 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
+    private fun inyectarAutoPlay() {
+        val js = """
+            (function() {
+                if (window.__autoPlayInstalado) return;
+                window.__autoPlayInstalado = true;
+
+                function autoSeleccionarServidor() {
+                    try {
+                        var url = window.location.href.toLowerCase();
+                        var esPaginaServidores = url.includes('/peliculas/') || url.includes('/movie/') ||
+                            url.includes('/ver/') || url.includes('/watch/');
+
+                        if (!esPaginaServidores) return;
+
+                        var botones = document.querySelectorAll('button, a, .btn, .server, .source, [class*="server"], [class*="source"], [class*="player"]');
+                        var mejorBtn = null;
+
+                        for (var i = 0; i < botones.length; i++) {
+                            var texto = botones[i].textContent.toLowerCase();
+                            var esSpanish = texto.includes('spanish') || texto.includes('español') ||
+                                texto.includes('latino') || texto.includes('span') ||
+                                texto.includes('main') || texto.includes('es-');
+                            var esRecomendado = texto.includes('recomendado') || texto.includes('recommended') ||
+                                texto.includes('mejor') || texto.includes('best') ||
+                                texto.includes('1') || texto.includes('hd');
+
+                            if (esSpanish || esRecomendado) {
+                                mejorBtn = botones[i];
+                                break;
+                            }
+                        }
+
+                        if (!mejorBtn) {
+                            var servidores = document.querySelectorAll('[class*="server"], [class*="source"], [class*="opt"]');
+                            if (servidores.length > 0) mejorBtn = servidores[0];
+                        }
+
+                        if (mejorBtn && !mejorBtn._autoClicked) {
+                            mejorBtn._autoClicked = true;
+                            setTimeout(function() { mejorBtn.click(); }, 500);
+                        }
+                    } catch(e) {}
+                }
+
+                function autoReproducir() {
+                    try {
+                        var videos = document.querySelectorAll('video');
+                        for (var i = 0; i < videos.length; i++) {
+                            var v = videos[i];
+                            if (v._autoPlayBinded) continue;
+                            v._autoPlayBinded = true;
+
+                            v.addEventListener('loadeddata', function() {
+                                var self = this;
+                                setTimeout(function() {
+                                    if (self.paused && self.readyState >= 2) {
+                                        self.play().catch(function(){});
+                                    }
+                                }, 800);
+                            });
+
+                            if (v.readyState >= 2 && v.paused) {
+                                v.play().catch(function(){});
+                            }
+                        }
+
+                        var iframes = document.querySelectorAll('iframe');
+                        for (var i = 0; i < iframes.length; i++) {
+                            var iframe = iframes[i];
+                            if (iframe._autoPlayBinded) continue;
+
+                            var src = (iframe.src || '').toLowerCase();
+                            var esPlayer = src.includes('player') || src.includes('embed') ||
+                                src.includes('server') || src.includes('stream') ||
+                                src.includes('vimeo') || src.includes('voe') ||
+                                src.includes('goodstream') || src.includes('dood');
+
+                            if (esPlayer && iframe.contentWindow) {
+                                iframe._autoPlayBinded = true;
+                                try {
+                                    iframe.contentWindow.postMessage(JSON.stringify({action: 'play'}), '*');
+                                } catch(e) {}
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                function cerrarPopupsConfirmacion() {
+                    try {
+                        var dialogs = document.querySelectorAll('.modal, .popup, .dialog, [class*="modal"], [class*="popup"], [class*="dialog"], [role="dialog"]');
+                        for (var i = dialogs.length - 1; i >= 0; i--) {
+                            var d = dialogs[i];
+                            var texto = d.textContent.toLowerCase();
+                            var esConfirmacion = texto.includes('¿desea') || texto.includes('do you want') ||
+                                texto.includes('ver ahora') || texto.includes('watch now') ||
+                                texto.includes('close') || texto.includes('cerrar') ||
+                                texto.includes('accept') || texto.includes('aceptar');
+                            if (esConfirmacion) {
+                                var btnCerrar = d.querySelector('button[class*="close"], .close, [class*="cerrar"], [aria-label="Close"]');
+                                if (btnCerrar) btnCerrar.click();
+                                else d.style.display = 'none';
+                            }
+                        }
+
+                        var overlays = document.querySelectorAll('[class*="overlay"], [class*="backdrop"]');
+                        for (var i = overlays.length - 1; i >= 0; i--) {
+                            var o = overlays[i];
+                            var tieneModal = o.querySelector('.modal, .popup, .dialog, [class*="modal"]');
+                            if (tieneModal) {
+                                var btnClose = o.querySelector('.close, button');
+                                if (btnClose) btnClose.click();
+                                else o.style.display = 'none';
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                autoSeleccionarServidor();
+                autoReproducir();
+                cerrarPopupsConfirmacion();
+
+                var obs = new MutationObserver(function() {
+                    setTimeout(autoSeleccionarServidor, 300);
+                    setTimeout(autoReproducir, 500);
+                    setTimeout(cerrarPopupsConfirmacion, 200);
+                });
+                obs.observe(document.body || document.documentElement, {childList: true, subtree: true});
+
+                setTimeout(autoSeleccionarServidor, 1000);
+                setTimeout(autoReproducir, 1500);
+                setTimeout(autoSeleccionarServidor, 3000);
+                setTimeout(autoReproducir, 4000);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
                 if (customView != null) {
                     webView.webChromeClient?.onHideCustomView()
+                    return true
+                }
+                if (controlsVisible) {
+                    hideControls()
                     return true
                 }
                 if (webView.canGoBack()) {
@@ -595,11 +784,27 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             KeyEvent.KEYCODE_DPAD_UP -> {
+                if (controlsVisible) {
+                    btnPlayPause.requestFocus()
+                    return true
+                }
                 webView.evaluateJavascript("window.__tvNav && window.__tvNav.move('up')", null)
                 return true
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.move('down')", null)
+                webView.evaluateJavascript(
+                    """
+                    (function() {
+                        var v = document.querySelector('video');
+                        if (v && !v.paused && !controlsVisible) {
+                            showTvControls();
+                        } else {
+                            window.__tvNav && window.__tvNav.move('down');
+                        }
+                    })();
+                    """.trimIndent(), null
+                )
+                showControls()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
@@ -621,18 +826,34 @@ class MainActivity : AppCompatActivity() {
                     })();
                     """.trimIndent(), null
                 )
+                updatePlayPauseButton()
                 return true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 webView.evaluateJavascript(
                     "var v=document.querySelector('video');if(v){if(v.paused)v.play();else v.pause();}", null
                 )
+                updatePlayPauseButton()
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                webView.evaluateJavascript("var v=document.querySelector('video');if(v)v.play();", null)
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                webView.evaluateJavascript("var v=document.querySelector('video');if(v)v.pause();", null)
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                webView.evaluateJavascript("var v=document.querySelector('video');if(v)v.currentTime+=10;", null)
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                webView.evaluateJavascript("var v=document.querySelector('video');if(v)v.currentTime-=10;", null)
                 return true
             }
             KeyEvent.KEYCODE_MENU -> {
-                webView.evaluateJavascript(
-                    "window.__tvNav && window.__tvNav.move('down')", null
-                )
+                toggleFullscreen()
                 return true
             }
         }
