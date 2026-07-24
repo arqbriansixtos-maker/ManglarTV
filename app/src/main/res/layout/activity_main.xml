@@ -7,7 +7,9 @@
     <WebView
         android:id="@+id/webView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:focusable="true"
+        android:focusableInTouchMode="true" />
 
     <FrameLayout
         android:id="@+id/fullscreenContainer"
@@ -22,42 +24,5 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:indeterminate="true" />
-
-    <!-- Controles flotantes para TV -->
-    <LinearLayout
-        android:id="@+id/tvControls"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:orientation="vertical"
-        android:background="#80000000"
-        android:padding="8dp"
-        android:visibility="visible">
-
-        <Button
-            android:id="@+id/btnPlayPause"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:text="▶"
-            android:textSize="20sp"
-            android:background="#CC00e5ff"
-            android:textColor="@android:color/white"
-            android:layout_marginBottom="4dp"
-            android:focusable="true"
-            android:focusableInTouchMode="true" />
-
-        <Button
-            android:id="@+id/btnFullscreen"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:text="⛶"
-            android:textSize="20sp"
-            android:background="#CC00e5ff"
-            android:textColor="@android:color/white"
-            android:focusable="true"
-            android:focusableInTouchMode="true" />
-
-    </LinearLayout>
 
 </FrameLayout>
