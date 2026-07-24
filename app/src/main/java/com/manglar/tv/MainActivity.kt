@@ -162,7 +162,31 @@ class MainActivity : AppCompatActivity() {
                 """
                 (function() {
                     var v = document.querySelector('video');
-                    if (v) { if (v.paused) v.play(); else v.pause(); }
+                    if (v) {
+                        if (v.paused) v.play(); else v.pause();
+                        return;
+                    }
+                    var iframes = document.querySelectorAll('iframe');
+                    for (var i = 0; i < iframes.length; i++) {
+                        var src = (iframes[i].src || '').toLowerCase();
+                        if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1) {
+                            try { iframes[i].contentWindow.postMessage(JSON.stringify({method:'getPaused'}), '*'); } catch(e) {}
+                        }
+                    }
+                    window.addEventListener('message', function onVimeoResp(e) {
+                        try {
+                            var d = JSON.parse(e.data);
+                            if (d.event === 'pause') {
+                                for (var j = 0; j < iframes.length; j++) {
+                                    iframes[j].contentWindow.postMessage(JSON.stringify({method:'play'}), '*');
+                                }
+                            } else if (d.event === 'play') {
+                                for (var j = 0; j < iframes.length; j++) {
+                                    iframes[j].contentWindow.postMessage(JSON.stringify({method:'pause'}), '*');
+                                }
+                            }
+                        } catch(ex) {}
+                    }, {once: true});
                 })();
                 """.trimIndent(), null
             )
@@ -170,7 +194,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnFullscreen.setOnClickListener {
-            toggleFullscreen()
+            webView.webChromeClient?.onShowCustomView(webView, object : WebChromeClient.CustomViewCallback {
+                override fun onCustomViewHidden() {}
+            })
         }
 
         configurarWebView()
@@ -179,7 +205,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun updatePlayPauseButton() {
         webView.evaluateJavascript(
-            "(function(){ var v=document.querySelector('video'); return v && !v.paused; })();"
+            """
+            (function(){
+                var v = document.querySelector('video');
+                if (v) return !v.paused;
+                var iframes = document.querySelectorAll('iframe[src*="vimeo"]');
+                if (iframes.length > 0) return 'vimeo';
+                return false;
+            })();
+            """.trimIndent()
         ) { result ->
             val playing = result?.contains("true") == true
             btnPlayPause.text = if (playing) "⏸" else "▶"
@@ -187,21 +221,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toggleFullscreen() {
-        webView.evaluateJavascript(
-            """
-            (function() {
-                if (document.fullscreenElement || document.webkitFullscreenElement) {
-                    if (document.exitFullscreen) document.exitFullscreen();
-                    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-                } else {
-                    var v = document.querySelector('video');
-                    var el = v ? (v.closest('.player, .video-player, [class*="player"], [id*="player"]') || v.parentElement || document.documentElement) : document.documentElement;
-                    if (el.requestFullscreen) el.requestFullscreen();
-                    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-                }
-            })();
-            """.trimIndent(), null
-        )
+        if (customView != null) {
+            webView.webChromeClient?.onHideCustomView()
+        } else {
+            webView.webChromeClient?.onShowCustomView(webView, object : WebChromeClient.CustomViewCallback {
+                override fun onCustomViewHidden() {}
+            })
+        }
     }
 
     private fun showControls() {
@@ -817,7 +843,16 @@ class MainActivity : AppCompatActivity() {
                         var v = document.querySelector('video');
                         if (v && !v.paused) { v.pause(); }
                         else if (v && v.paused) { v.play(); }
-                        else { window.__tvNav && window.__tvNav.click(); }
+                        else {
+                            var iframes = document.querySelectorAll('iframe');
+                            for (var i = 0; i < iframes.length; i++) {
+                                var src = (iframes[i].src || '').toLowerCase();
+                                if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1) {
+                                    iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}), '*');
+                                }
+                            }
+                            window.__tvNav && window.__tvNav.click();
+                        }
                     })();
                     """.trimIndent(), null
                 )
@@ -826,7 +861,19 @@ class MainActivity : AppCompatActivity() {
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 webView.evaluateJavascript(
-                    "var v=document.querySelector('video');if(v){if(v.paused)v.play();else v.pause();}", null
+                    """
+                    (function() {
+                        var v = document.querySelector('video');
+                        if (v) { if (v.paused) v.play(); else v.pause(); return; }
+                        var iframes = document.querySelectorAll('iframe');
+                        for (var i = 0; i < iframes.length; i++) {
+                            var src = (iframes[i].src || '').toLowerCase();
+                            if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1) {
+                                iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}), '*');
+                            }
+                        }
+                    })();
+                    """.trimIndent(), null
                 )
                 updatePlayPauseButton()
                 return true
