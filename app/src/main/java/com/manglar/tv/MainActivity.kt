@@ -246,6 +246,7 @@ class MainActivity : AppCompatActivity() {
                 inyectarBloqueoAds()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
+                showControls()
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -638,38 +639,72 @@ class MainActivity : AppCompatActivity() {
 
                 function autoSeleccionarServidor() {
                     try {
-                        var url = window.location.href.toLowerCase();
-                        var esPaginaServidores = url.includes('/peliculas/') || url.includes('/movie/') ||
-                            url.includes('/ver/') || url.includes('/watch/');
-
-                        if (!esPaginaServidores) return;
-
-                        var botones = document.querySelectorAll('button, a, .btn, .server, .source, [class*="server"], [class*="source"], [class*="player"]');
+                        var todos = document.querySelectorAll('button, a, div, span, li, [class*="server"], [class*="source"], [class*="opt"], [class*="btn"]');
                         var mejorBtn = null;
 
-                        for (var i = 0; i < botones.length; i++) {
-                            var texto = botones[i].textContent.toLowerCase();
-                            var esSpanish = texto.includes('spanish') || texto.includes('español') ||
-                                texto.includes('latino') || texto.includes('span') ||
-                                texto.includes('main') || texto.includes('es-');
-                            var esRecomendado = texto.includes('recomendado') || texto.includes('recommended') ||
-                                texto.includes('mejor') || texto.includes('best') ||
-                                texto.includes('1') || texto.includes('hd');
+                        for (var i = 0; i < todos.length; i++) {
+                            var el = todos[i];
+                            var texto = el.textContent.toLowerCase().trim();
+                            var clase = (el.className || '').toLowerCase();
 
-                            if (esSpanish || esRecomendado) {
-                                mejorBtn = botones[i];
+                            var esSpanishMain = (texto.includes('spanish') && texto.includes('main')) ||
+                                (texto.includes('español') && texto.includes('main')) ||
+                                texto.includes('⚡') && texto.includes('spanish') ||
+                                clase.includes('spanish') && clase.includes('main') ||
+                                (texto.includes('span') && texto.includes('main'));
+
+                            if (esSpanishMain && !el._autoClicked) {
+                                mejorBtn = el;
                                 break;
                             }
                         }
 
                         if (!mejorBtn) {
-                            var servidores = document.querySelectorAll('[class*="server"], [class*="source"], [class*="opt"]');
-                            if (servidores.length > 0) mejorBtn = servidores[0];
+                            for (var i = 0; i < todos.length; i++) {
+                                var el = todos[i];
+                                var texto = el.textContent.toLowerCase().trim();
+                                var esSpanish = texto.includes('spanish') || texto.includes('español') ||
+                                    texto.includes('latino') || texto.includes('⚡');
+                                if (esSpanish && !el._autoClicked) {
+                                    mejorBtn = el;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!mejorBtn) {
+                            for (var i = 0; i < todos.length; i++) {
+                                var el = todos[i];
+                                var texto = el.textContent.toLowerCase().trim();
+                                var esMain = texto.includes('main') || texto.includes('recomendado') ||
+                                    texto.includes('recommended') || texto.includes('1') ||
+                                    texto.includes('server 1');
+                                if (esMain && !el._autoClicked) {
+                                    mejorBtn = el;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!mejorBtn) {
+                            var servidores = document.querySelectorAll('[class*="server"], [class*="source"], [class*="option"]');
+                            for (var i = 0; i < servidores.length; i++) {
+                                if (!servidores[i]._autoClicked) {
+                                    mejorBtn = servidores[i];
+                                    break;
+                                }
+                            }
                         }
 
                         if (mejorBtn && !mejorBtn._autoClicked) {
                             mejorBtn._autoClicked = true;
-                            setTimeout(function() { mejorBtn.click(); }, 500);
+                            setTimeout(function() {
+                                mejorBtn.click();
+                                var enlace = mejorBtn.querySelector('a');
+                                if (enlace) enlace.click();
+                                var boton = mejorBtn.querySelector('button');
+                                if (boton) boton.click();
+                            }, 300);
                         }
                     } catch(e) {}
                 }
@@ -682,36 +717,37 @@ class MainActivity : AppCompatActivity() {
                             if (v._autoPlayBinded) continue;
                             v._autoPlayBinded = true;
 
+                            v.muted = false;
+                            v.autoplay = true;
+
                             v.addEventListener('loadeddata', function() {
                                 var self = this;
                                 setTimeout(function() {
-                                    if (self.paused && self.readyState >= 2) {
+                                    if (self.paused) {
                                         self.play().catch(function(){});
                                     }
-                                }, 800);
+                                }, 300);
                             });
 
-                            if (v.readyState >= 2 && v.paused) {
+                            v.addEventListener('canplay', function() {
+                                var self = this;
+                                setTimeout(function() {
+                                    if (self.paused) {
+                                        self.play().catch(function(){});
+                                    }
+                                }, 200);
+                            });
+
+                            if (v.readyState >= 1) {
                                 v.play().catch(function(){});
                             }
                         }
 
-                        var iframes = document.querySelectorAll('iframe');
-                        for (var i = 0; i < iframes.length; i++) {
-                            var iframe = iframes[i];
-                            if (iframe._autoPlayBinded) continue;
-
-                            var src = (iframe.src || '').toLowerCase();
-                            var esPlayer = src.includes('player') || src.includes('embed') ||
-                                src.includes('server') || src.includes('stream') ||
-                                src.includes('vimeo') || src.includes('voe') ||
-                                src.includes('goodstream') || src.includes('dood');
-
-                            if (esPlayer && iframe.contentWindow) {
-                                iframe._autoPlayBinded = true;
-                                try {
-                                    iframe.contentWindow.postMessage(JSON.stringify({action: 'play'}), '*');
-                                } catch(e) {}
+                        var playBtns = document.querySelectorAll('[class*="play"], .vjs-big-play-button, .jw-icon-display, [aria-label*="Play"], [title*="Play"], [title*="play"], button[aria-label*="play"]');
+                        for (var i = 0; i < playBtns.length; i++) {
+                            if (!playBtns[i]._autoClicked) {
+                                playBtns[i]._autoClicked = true;
+                                playBtns[i].click();
                             }
                         }
                     } catch(e) {}
@@ -719,29 +755,33 @@ class MainActivity : AppCompatActivity() {
 
                 function cerrarPopupsConfirmacion() {
                     try {
-                        var dialogs = document.querySelectorAll('.modal, .popup, .dialog, [class*="modal"], [class*="popup"], [class*="dialog"], [role="dialog"]');
-                        for (var i = dialogs.length - 1; i >= 0; i--) {
-                            var d = dialogs[i];
-                            var texto = d.textContent.toLowerCase();
-                            var esConfirmacion = texto.includes('¿desea') || texto.includes('do you want') ||
-                                texto.includes('ver ahora') || texto.includes('watch now') ||
-                                texto.includes('close') || texto.includes('cerrar') ||
-                                texto.includes('accept') || texto.includes('aceptar');
-                            if (esConfirmacion) {
-                                var btnCerrar = d.querySelector('button[class*="close"], .close, [class*="cerrar"], [aria-label="Close"]');
-                                if (btnCerrar) btnCerrar.click();
-                                else d.style.display = 'none';
+                        var modals = document.querySelectorAll('.modal, .popup, .dialog, [class*="modal"], [class*="popup"], [class*="dialog"], [role="dialog"], [role="alertdialog"]');
+                        for (var i = modals.length - 1; i >= 0; i--) {
+                            var m = modals[i];
+                            var estilo = window.getComputedStyle(m);
+                            if (estilo.display === 'none') continue;
+
+                            var btnCerrar = m.querySelector('button.close, .close, [class*="close"], [aria-label="Close"], [aria-label="Cerrar"]');
+                            if (btnCerrar) {
+                                btnCerrar.click();
+                            } else {
+                                m.style.display = 'none';
                             }
                         }
 
                         var overlays = document.querySelectorAll('[class*="overlay"], [class*="backdrop"]');
                         for (var i = overlays.length - 1; i >= 0; i--) {
-                            var o = overlays[i];
-                            var tieneModal = o.querySelector('.modal, .popup, .dialog, [class*="modal"]');
-                            if (tieneModal) {
-                                var btnClose = o.querySelector('.close, button');
-                                if (btnClose) btnClose.click();
-                                else o.style.display = 'none';
+                            var estilo = window.getComputedStyle(overlays[i]);
+                            if (estilo.position === 'fixed' || estilo.position === 'absolute') {
+                                overlays[i].style.display = 'none';
+                            }
+                        }
+
+                        var btnsCerrar = document.querySelectorAll('[class*="close"], [class*="cerrar"], [aria-label="Close"], [aria-label="Cerrar"]');
+                        for (var i = 0; i < btnsCerrar.length; i++) {
+                            var estilo = window.getComputedStyle(btnsCerrar[i]);
+                            if (estilo.display !== 'none') {
+                                btnsCerrar[i].click();
                             }
                         }
                     } catch(e) {}
@@ -752,16 +792,18 @@ class MainActivity : AppCompatActivity() {
                 cerrarPopupsConfirmacion();
 
                 var obs = new MutationObserver(function() {
-                    setTimeout(autoSeleccionarServidor, 300);
-                    setTimeout(autoReproducir, 500);
-                    setTimeout(cerrarPopupsConfirmacion, 200);
+                    setTimeout(autoSeleccionarServidor, 200);
+                    setTimeout(autoReproducir, 400);
+                    setTimeout(cerrarPopupsConfirmacion, 100);
                 });
                 obs.observe(document.body || document.documentElement, {childList: true, subtree: true});
 
-                setTimeout(autoSeleccionarServidor, 1000);
-                setTimeout(autoReproducir, 1500);
-                setTimeout(autoSeleccionarServidor, 3000);
-                setTimeout(autoReproducir, 4000);
+                setTimeout(autoSeleccionarServidor, 500);
+                setTimeout(autoReproducir, 800);
+                setTimeout(autoSeleccionarServidor, 2000);
+                setTimeout(autoReproducir, 2500);
+                setTimeout(autoSeleccionarServidor, 4000);
+                setTimeout(autoReproducir, 5000);
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
