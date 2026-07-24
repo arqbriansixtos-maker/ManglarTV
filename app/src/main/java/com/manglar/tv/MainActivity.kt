@@ -255,23 +255,13 @@ class MainActivity : AppCompatActivity() {
 
                 if (url.startsWith("javascript:")) return false
 
-                val esManglar = host.endsWith("manglar.fun")
-                if (esManglar) return false
+                val esAd = adHostFragments.any { host.contains(it) }
+                if (esAd) return true
 
-                val esRecursoEstatico = url.contains("fonts.googleapis.com") ||
-                    url.contains("fonts.gstatic.com") ||
-                    url.contains("cdnjs.cloudflare.com") ||
-                    url.contains("cdn.jsdelivr.net") ||
-                    url.endsWith(".css") ||
-                    url.endsWith(".js") && !url.contains("ads") ||
-                    url.endsWith(".png") ||
-                    url.endsWith(".jpg") ||
-                    url.endsWith(".svg") ||
-                    url.endsWith(".woff") ||
-                    url.endsWith(".woff2")
-                if (esRecursoEstatico) return false
+                val esAdUrl = adUrlPatterns.any { url.contains(it) }
+                if (esAdUrl) return true
 
-                return true
+                return false
             }
 
             override fun shouldInterceptRequest(
@@ -637,6 +627,13 @@ class MainActivity : AppCompatActivity() {
                 if (window.__autoPlayInstalado) return;
                 window.__autoPlayInstalado = true;
 
+                var url = window.location.href.toLowerCase();
+                var esPaginaPelicula = url.includes('/peliculas/') || url.includes('/movie/') ||
+                    url.includes('/ver/') || url.includes('/watch/') ||
+                    url.includes('/genero/') || url.includes('/genre/');
+
+                if (!esPaginaPelicula) return;
+
                 function autoSeleccionarServidor() {
                     try {
                         var todos = document.querySelectorAll('button, a, div, span, li, [class*="server"], [class*="source"], [class*="opt"], [class*="btn"]');
@@ -666,20 +663,6 @@ class MainActivity : AppCompatActivity() {
                                 var esSpanish = texto.includes('spanish') || texto.includes('español') ||
                                     texto.includes('latino') || texto.includes('⚡');
                                 if (esSpanish && !el._autoClicked) {
-                                    mejorBtn = el;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (!mejorBtn) {
-                            for (var i = 0; i < todos.length; i++) {
-                                var el = todos[i];
-                                var texto = el.textContent.toLowerCase().trim();
-                                var esMain = texto.includes('main') || texto.includes('recomendado') ||
-                                    texto.includes('recommended') || texto.includes('1') ||
-                                    texto.includes('server 1');
-                                if (esMain && !el._autoClicked) {
                                     mejorBtn = el;
                                     break;
                                 }
@@ -723,18 +706,14 @@ class MainActivity : AppCompatActivity() {
                             v.addEventListener('loadeddata', function() {
                                 var self = this;
                                 setTimeout(function() {
-                                    if (self.paused) {
-                                        self.play().catch(function(){});
-                                    }
+                                    if (self.paused) self.play().catch(function(){});
                                 }, 300);
                             });
 
                             v.addEventListener('canplay', function() {
                                 var self = this;
                                 setTimeout(function() {
-                                    if (self.paused) {
-                                        self.play().catch(function(){});
-                                    }
+                                    if (self.paused) self.play().catch(function(){});
                                 }, 200);
                             });
 
@@ -743,7 +722,7 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
-                        var playBtns = document.querySelectorAll('[class*="play"], .vjs-big-play-button, .jw-icon-display, [aria-label*="Play"], [title*="Play"], [title*="play"], button[aria-label*="play"]');
+                        var playBtns = document.querySelectorAll('.vjs-big-play-button, .jw-icon-display, [aria-label*="Play"], [title*="Play"], [title*="play"]');
                         for (var i = 0; i < playBtns.length; i++) {
                             if (!playBtns[i]._autoClicked) {
                                 playBtns[i]._autoClicked = true;
@@ -753,48 +732,24 @@ class MainActivity : AppCompatActivity() {
                     } catch(e) {}
                 }
 
-                function cerrarPopupsConfirmacion() {
+                function cerrarPopups() {
                     try {
-                        var modals = document.querySelectorAll('.modal, .popup, .dialog, [class*="modal"], [class*="popup"], [class*="dialog"], [role="dialog"], [role="alertdialog"]');
+                        var modals = document.querySelectorAll('.modal.show, .modal[style*="display: block"], .popup, [role="dialog"]');
                         for (var i = modals.length - 1; i >= 0; i--) {
-                            var m = modals[i];
-                            var estilo = window.getComputedStyle(m);
-                            if (estilo.display === 'none') continue;
-
-                            var btnCerrar = m.querySelector('button.close, .close, [class*="close"], [aria-label="Close"], [aria-label="Cerrar"]');
-                            if (btnCerrar) {
-                                btnCerrar.click();
-                            } else {
-                                m.style.display = 'none';
-                            }
-                        }
-
-                        var overlays = document.querySelectorAll('[class*="overlay"], [class*="backdrop"]');
-                        for (var i = overlays.length - 1; i >= 0; i--) {
-                            var estilo = window.getComputedStyle(overlays[i]);
-                            if (estilo.position === 'fixed' || estilo.position === 'absolute') {
-                                overlays[i].style.display = 'none';
-                            }
-                        }
-
-                        var btnsCerrar = document.querySelectorAll('[class*="close"], [class*="cerrar"], [aria-label="Close"], [aria-label="Cerrar"]');
-                        for (var i = 0; i < btnsCerrar.length; i++) {
-                            var estilo = window.getComputedStyle(btnsCerrar[i]);
-                            if (estilo.display !== 'none') {
-                                btnsCerrar[i].click();
-                            }
+                            var btn = modals[i].querySelector('.close, [class*="close"], [aria-label="Close"]');
+                            if (btn) btn.click();
+                            else modals[i].style.display = 'none';
                         }
                     } catch(e) {}
                 }
 
                 autoSeleccionarServidor();
                 autoReproducir();
-                cerrarPopupsConfirmacion();
+                cerrarPopups();
 
                 var obs = new MutationObserver(function() {
                     setTimeout(autoSeleccionarServidor, 200);
                     setTimeout(autoReproducir, 400);
-                    setTimeout(cerrarPopupsConfirmacion, 100);
                 });
                 obs.observe(document.body || document.documentElement, {childList: true, subtree: true});
 
@@ -802,8 +757,6 @@ class MainActivity : AppCompatActivity() {
                 setTimeout(autoReproducir, 800);
                 setTimeout(autoSeleccionarServidor, 2000);
                 setTimeout(autoReproducir, 2500);
-                setTimeout(autoSeleccionarServidor, 4000);
-                setTimeout(autoReproducir, 5000);
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
