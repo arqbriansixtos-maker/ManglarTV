@@ -120,50 +120,39 @@ class MainActivity : AppCompatActivity() {
     )
 
     private val adUrlPatterns = listOf(
-        "/ads/", "/ad/", "/ad_", "/ads_", "/advert/", "/adverts/",
-        "/banner/", "/banners/", "/promo/", "/promos/",
+        "/ads/", "/advert/", "/adverts/",
         "/sponsor/", "/sponsored/",
-        "/popunder", "/pop-up", "/popup",
-        "/tracking/", "/track/", "/pixel/", "/pixels/",
-        "/analytics/", "/stat/", "/stats/",
-        "/vast", "/vpaid", "/dailymotion.com/ad",
+        "/popunder", "/pop-up",
+        "/vast.xml", "/vast2.xml", "/vast-wrapper",
         "/imasdk/", "googlesyndication.com/pagead",
         "/pagead/", "/adsbygoogle",
         "doubleclick.net/adj", "doubleclick.net/ddm/",
         "/prebid/", "/header-bidding/",
-        "/interstitial/", "/splash/", "/overlay/",
-        "/redirect/", "/redir/", "/go/", "/click/",
-        "/out/", "/exit/", "/leave/",
-        "/interstitial-ad", "/preroll", "/midroll", "/postroll",
-        "/companionad", "/vast.xml", "/vast2.xml",
-        "/vast-wrapper", "/ima-", "/googleima",
+        "/interstitial-ad",
+        "/preroll", "/midroll", "/postroll",
+        "/companionad",
         "imasdk.googleapis.com", "/ad_break",
-        "adserver", "/ad-serve", "/adserve",
+        "/ad-serve", "/adserve",
         "/adrequest", "/ad_request", "/getad",
-        "/showad", "/show_ads", "/display-ad",
-        "/native-ad", "/sponsored-content"
+        "/showad", "/show_ads", "/display-ad"
     )
 
     private val adCssSelectors = listOf(
-        ".ad", ".ads", ".adv", ".advert", ".advertisement",
         ".ad-container", ".ad-wrapper", ".ad-banner", ".ad-slot",
-        ".ad-unit", ".ad-box", ".ad-block", ".ad-section",
+        ".ad-unit", ".ad-box", ".ad-section",
         ".adsbox", ".ads-container", ".ads-wrapper",
-        "[data-ad]", "[data-ads]", "[data-adunit]", "[data-adunit-id]",
+        "[data-ad]", "[data-adunit]", "[data-adunit-id]",
         "[data-dfp]", "[data-ad-slot]", "[data-ad-id]",
-        "[data-adv]", "[data-promo]", "[data-sponsored]",
         ".banner-ad", ".sidebar-ad", ".footer-ad", ".header-ad",
         ".popup-ad", ".overlay-ad", ".interstitial-ad",
         ".ad-overlay", ".ad-modal", ".ad-popup", ".ad-fullscreen",
-        "#ad", "#ads", "#advertisement",
         "#ad-container", "#ad-wrapper", "#ad-banner", "#ad-overlay",
-        ".sponsored", ".sponsored-content", ".sponsored-post",
-        ".promo", ".promotion", ".promo-banner",
+        ".sponsored-content", ".sponsored-post",
+        ".promo-banner",
         ".taboola", ".outbrain", ".revcontent", ".mgid",
         ".nativo", ".teads", ".connatix",
-        ".popunder", ".pop-under", ".poper",
+        ".popunder", ".pop-under",
         ".adblock", ".adblock-overlay",
-        ".overlay", ".modal-overlay", ".backdrop",
         ".social-toolbar", ".share-bar-floating",
         ".crypto-miner", ".coin-miner", ".miner-container",
         ".video-ad", ".video-ads", ".preroll-ad",
@@ -172,11 +161,9 @@ class MainActivity : AppCompatActivity() {
         ".ad-dfp", ".ad-google", ".ad-block-wrapper",
         ".adLayer", ".ad-layer", ".adZone",
         ".adElement", ".adv-container", ".adv-banner",
-        "ins.adsbygoogle", "amp-ad", "amp-embed[type=\"adsense\"]",
-        ".commercial-unit-desktop-top", ".commercial-unit-desktop-rhs",
-        "[id*=\"google_ads\"]", "[id*=\"ad-\"]", "[id*=\"ads-\"]",
-        "[class*=\"ad-true\"]", "[class*=\"ad-false\"]",
-        "[class*=\"banner\"]", "[class*=\"promo\"]"
+        "ins.adsbygoogle", "amp-ad",
+        "[id*=\"google_ads\"]",
+        "[class*=\"ad-true\"]", "[class*=\"ad-false\"]"
     )
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -239,15 +226,6 @@ class MainActivity : AppCompatActivity() {
                 val esAdUrl = adUrlPatterns.any { url.contains(it) }
                 if (esAdUrl) return true
 
-                val esRedirecSospechoso = url.contains("/redirect") ||
-                    url.contains("/click") ||
-                    url.contains("/track") ||
-                    url.contains("/pop") ||
-                    url.contains("/go/") ||
-                    url.contains("/out/") ||
-                    url.contains("utm_source") && !host.contains("manglar")
-                if (esRedirecSospechoso) return true
-
                 return false
             }
 
@@ -269,24 +247,12 @@ class MainActivity : AppCompatActivity() {
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
                 }
 
-                val esTracker = url.contains("analytics") ||
-                    url.contains("/tracking") ||
-                    url.contains("/pixel.gif") ||
-                    url.contains("/beacon") ||
-                    url.contains("collect?v=") ||
-                    url.contains("/collect") && host.contains("google") ||
-                    url.contains("facebook.com/tr") ||
-                    url.contains("/gtm.js") ||
-                    url.contains("/gtag/") ||
+                val esTracker = url.contains("facebook.com/tr") ||
                     url.contains("adsbygoogle") ||
                     url.contains("imasdk") ||
-                    url.contains("vast.xml") ||
-                    url.contains("vpaid") ||
-                    url.contains("preroll") ||
-                    url.contains("midroll") ||
-                    url.contains("postroll") ||
-                    url.contains("/ad_break") ||
-                    url.contains("googlesyndication")
+                    url.contains("googlesyndication") ||
+                    url.contains("/vast.xml") ||
+                    url.contains("/vast2.xml")
 
                 if (esTracker) {
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
@@ -348,7 +314,7 @@ class MainActivity : AppCompatActivity() {
 
                 var style = document.createElement('style');
                 style.id = '__manglar_adblock';
-                style.textContent = '$selectorStr { display: none !important; visibility: hidden !important; height: 0 !important; max-height: 0 !important; overflow: hidden !important; opacity: 0 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; position: absolute !important; left: -9999px !important; } .overlay, .modal, .backdrop, [class*="overlay"], [class*="modal"] { z-index: -9999 !important; pointer-events: none !important; } body { overflow: auto !important; }';
+                style.textContent = '$selectorStr { display: none !important; }';
                 document.head.appendChild(style);
 
                 function isAdUrl(src) {
@@ -372,15 +338,7 @@ class MainActivity : AppCompatActivity() {
                         var iframes = document.querySelectorAll('iframe');
                         for (var i = iframes.length - 1; i >= 0; i--) {
                             var src = (iframes[i].src || '').toLowerCase();
-                            var name = (iframes[i].name || '').toLowerCase();
-                            var id = (iframes[i].id || '').toLowerCase();
-                            var isAd = isAdUrl(src) ||
-                                name.indexOf('ad') !== -1 ||
-                                name.indexOf('google') !== -1 ||
-                                id.indexOf('ad') !== -1 ||
-                                id.indexOf('google') !== -1 ||
-                                src.indexOf('ad') !== -1 && src.indexOf('manglar') === -1;
-                            if (isAd && iframes[i].parentNode) {
+                            if (isAdUrl(src) && iframes[i].parentNode) {
                                 iframes[i].parentNode.removeChild(iframes[i]);
                             }
                         }
@@ -393,47 +351,16 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
-                        var overlays = document.querySelectorAll('[style*="position: fixed"], [style*="position:fixed"]');
-                        for (var i = overlays.length - 1; i >= 0; i--) {
-                            var el = overlays[i];
-                            var rect = el.getBoundingClientRect();
-                            if (rect.width > 200 && rect.height > 200 && el.tagName !== 'VIDEO') {
-                                el.style.display = 'none';
-                            }
-                        }
-
                         var bigFixed = document.querySelectorAll('div[style*="z-index: 9999"], div[style*="z-index:9999"], div[style*="z-index: 99999"], div[style*="z-index:99999"]');
                         for (var i = bigFixed.length - 1; i >= 0; i--) {
-                            bigFixed[i].style.display = 'none';
-                        }
-                    } catch(e) {}
-                }
-
-                function bloquearPopups() {
-                    try {
-                        window.open = function() { return null; };
-                        document.createElement = function(tag) {
-                            if (tag.toLowerCase() === 'iframe') {
-                                var iframe = document._createElementOriginal ? document._createElementOriginal(tag) : document.createElement.__proto__.call(document, tag);
-                                var origSetAttribute = iframe.setAttribute;
-                                iframe.setAttribute = function(name, value) {
-                                    if (name === 'src' && value) {
-                                        var v = value.toLowerCase();
-                                        for (var i = 0; i < adHosts.length; i++) {
-                                            if (v.indexOf(adHosts[i]) !== -1) return;
-                                        }
-                                    }
-                                    return origSetAttribute.call(this, name, value);
-                                };
-                                return iframe;
+                            if (bigFixed[i].querySelector('video') === null) {
+                                bigFixed[i].style.display = 'none';
                             }
-                            return document.createElement.__proto__.call(document, tag);
-                        };
+                        }
                     } catch(e) {}
                 }
 
                 eliminarAds();
-                bloquearPopups();
 
                 var observer = new MutationObserver(function(mutations) {
                     for (var m = 0; m < mutations.length; m++) {
@@ -447,11 +374,8 @@ class MainActivity : AppCompatActivity() {
                     subtree: true
                 });
 
-                setTimeout(eliminarAds, 300);
-                setTimeout(eliminarAds, 800);
+                setTimeout(eliminarAds, 500);
                 setTimeout(eliminarAds, 2000);
-                setTimeout(eliminarAds, 5000);
-                setInterval(eliminarAds, 3000);
             })();
         """.trimIndent()
 
