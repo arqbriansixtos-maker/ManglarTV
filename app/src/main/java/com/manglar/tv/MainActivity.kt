@@ -29,6 +29,7 @@ class MainActivity : AppCompatActivity() {
 
     private val allowedHostSuffixes = listOf(
         "manglar.fun",
+        "manglarpelis.manglar.fun",
         "cloudfront.net",
         "amazonaws.com",
         "googleapis.com",
@@ -38,10 +39,10 @@ class MainActivity : AppCompatActivity() {
         "vimeo.com",
         "jwpcdn.com",
         "jwpltx.com",
+        "jwpsrv.com",
+        "jwswire.com",
         "flowplayer.org",
         "flowplayer.com",
-        "cdn.flowplayer.org",
-        "hls.ru",
         "akamaized.net",
         "cloudflare.com",
         "fontawesome.com",
@@ -54,238 +55,93 @@ class MainActivity : AppCompatActivity() {
         "themoviedb.org",
         "image.tmdb.org",
         "imdb.com",
-        "manglarpelis.manglar.fun"
+        "dailymotion.com",
+        "dmcdn.net",
+        "dailymotion-video.com",
+        "facebook.com",
+        "fbcdn.net",
+        "instagram.com",
+        "tiktok.com",
+        "cdn77.org",
+        "fastly.net",
+        "hwcdn.net",
+        "bitgravity.com",
+        "limelight.com",
+        "cdn.bitgravity.com",
+        "akamaihd.net",
+        "statics.cloud"
     )
 
     private val adHostFragments = listOf(
-        "doubleclick.net",
-        "googlesyndication.com",
-        "google-analytics.com",
-        "googletagmanager.com",
-        "googletagservices.com",
-        "adservice.google",
-        "pagead2.googlesyndication",
-        "ads.google.com",
-        "propellerads.com",
-        "propeller-ads.com",
-        "popads.net",
-        "poper.pro",
-        "exoclick.com",
-        "juicyads.com",
-        "adsterra.com",
-        "adnxs.com",
-        "taboola.com",
-        "outbrain.com",
-        "revcontent.com",
-        "mgid.com",
-        "clickadu.com",
-        "hilltopads.net",
-        "adcash.com",
-        "yllix.com",
-        "trafficjunky.net",
-        "adskeeper.co.uk",
-        "smartadserver.com",
-        "onclickmax.com",
-        "adsco.re",
-        "media.net",
-        "criteo.com",
-        "criteo.net",
-        "casalemedia.com",
-        "pubmatic.com",
-        "rubiconproject.com",
-        "openx.net",
-        "moatads.com",
-        "quantserve.com",
-        "scorecardresearch.com",
-        "bluekai.com",
-        "demdex.net",
-        "everesttech.net",
-        "turn.com",
-        "mathtag.com",
-        "serving-sys.com",
-        "bidswitch.net",
-        "sharethrough.com",
-        "teads.tv",
-        "spotxchange.com",
-        "prebid.org",
-        "spotx.tv",
-        "adition.com",
-        "adform.net",
-        "adobedtm.com",
-        "amazon-adsystem.com",
-        "aps.amazon.com",
-        "aps.amazon-adsystem.com",
-        "contextual.media.net",
-        "simpli.fi",
-        "lijit.com",
-        "tapad.com",
-        "brealtime.com",
-        "emxdgt.com",
-        "adsymptotic.com",
-        "corra.com",
-        "bidgear.com",
-        "vindicosuite.com",
-        "tribalfusion.com",
-        "stickyadstv.com",
-        "yieldmo.com",
-        "sonobi.com",
-        "nativo.com",
-        "nativo.net",
-        "connatix.com",
-        "connatix.com.cdn",
-        "confiant-integrations.net",
-        "geoedge.be",
-        "iasds01.com",
-        "doubleverify.com",
-        "adsafeprotected.com",
-        "izatcloud.net",
-        "mookie1.com",
-        "tribalfusion.com",
-        "undertone.com",
-        "synacor.com",
-        "indexww.com",
-        "33across.com",
-        "krxd.net",
-        "blueconic.net",
-        "chartbeat.com",
-        "chartbeat.net",
-        "parsely.com",
-        "hotjar.com",
-        "fullstory.com",
-        "mouseflow.com",
-        "crazyegg.com",
-        "optimizely.com",
-        "segment.io",
-        "segment.com",
-        "amplitude.com",
-        "mixpanel.com",
-        "branch.io",
-        "adjust.com",
-        "appsflyer.com",
-        "kochava.com",
-        "singular.net",
-        "hasoffers.com",
-        "impact.com",
-        "partnerstack.com",
-        "clickmeter.com",
-        "bit.ly",
-        "t.co",
-        "adobe.com",
-        "omtrdc.net",
-        "2o7.net",
-        "demdex.net",
-        "everesttech.net",
-        "licdn.com",
-        "ads.linkedin.com",
-        "facebook.com/tr",
-        "facebook.net",
-        "fbcdn.net",
-        "twitter.com/i/adsct",
-        "snap.licdn.com",
-        "bing.com/bat.js",
-        "clarity.ms",
-        "bat.bing.com",
-        "newrelic.com",
-        "nr-data.net",
-        "sentry.io",
-        "bugsnag.com",
-        "rollbar.com",
-        "cookieselection.com",
-        "onetrust.com",
-        "cookielaw.org",
-        "trustarc.com",
-        "evidon.com",
-        "sourcepoint.mgr.consensu.org",
-        "privacymanager.io",
-        "kampyle.com",
-        "medallia.com",
-        "surveymonkey.com",
-        "qualaroo.com",
-        "optinmonster.com",
-        "sumo.com",
-        "sumome.com",
-        "sumo.ly",
-        "adcash.com",
-        "popcash.net",
-        "popmyads.com",
-        "monetizer101.com",
-        "exoclick.com",
-        "trafficjunky.com",
-        "trafficjunky.net",
-        "juicyads.com",
-        "exoticads.com",
-        "ero-advertising.com",
-        "adscendmedia.com",
-        "content.ad",
-        "speakol.com",
-        "newspepper.com",
-        "dafunkid.com",
-        "voluum.com",
-        "zpushkovn.com",
-        "bongacams.com",
-        "livejasmin.com",
-        "chaturbate.com",
-        "crakrevenue.com",
-        "hilltopads.net",
-        "onclickadu.com",
-        "ad-maven.com",
-        "monetag.com",
-        "richpush.com",
-        "galaksion.com",
-        "losrados.com",
-        "evadav.com",
-        "crakRevenue.com",
-        "trafficstars.com",
-        "benzinga.com",
-        "zedo.com",
-        "serving-sys.com",
-        "sociomantic.com",
-        "ad4game.com",
-        "infolinks.com",
-        "viglink.com",
-        "skimlinks.com",
-        "nativo.com",
-        "teads.tv",
-        "connatix.com",
-        "minutemediapro.com",
-        "jwplayer.com",
-        "playwire.com",
-        "freewheel.com",
-        "freewheel.com",
-        "magnite.com",
-        "pubmatic.com",
-        "triplelift.com",
-        "sharethrough.com",
-        "smartadserver.com",
-        "adingo.jp",
-        "a]dfly.com",
-        "sh.st",
-        "ouo.io",
-        "bluemedium.com",
-        "bc.vc",
-        "shorte.st",
-        "adfoc.us",
-        "linkbucks.com",
-        "cutUrls.com",
-        "coinimp.com",
-        "coinhive.com",
-        "coin-hive.com",
-        "authedmine.com",
-        "crypto-loot.com",
-        "webminepool.com",
-        "minero.pw",
-        "minr.pw",
-        "ppoi.org",
-        "jsecoin.com",
-        "browsermine.com",
-        "coin-service.com",
-        "monerominer.rocks",
-        "gridcash.net",
-        "ad-miner.com",
-        "coinlab.biz",
-        "webmine.cz",
-        "minero.cc",
-        "coinnebula.com"
+        "doubleclick.net", "googlesyndication.com", "google-analytics.com",
+        "googletagmanager.com", "googletagservices.com", "adservice.google",
+        "pagead2.googlesyndication", "ads.google.com", "adsense",
+        "propellerads.com", "propeller-ads.com", "popads.net", "poper.pro",
+        "exoclick.com", "juicyads.com", "adsterra.com", "adnxs.com",
+        "taboola.com", "outbrain.com", "revcontent.com", "mgid.com",
+        "clickadu.com", "hilltopads.net", "adcash.com", "yllix.com",
+        "trafficjunky.net", "adskeeper.co.uk", "smartadserver.com",
+        "onclickmax.com", "adsco.re", "media.net", "criteo.com", "criteo.net",
+        "casalemedia.com", "pubmatic.com", "rubiconproject.com", "openx.net",
+        "moatads.com", "quantserve.com", "scorecardresearch.com",
+        "bluekai.com", "demdex.net", "everesttech.net", "turn.com",
+        "mathtag.com", "serving-sys.com", "bidswitch.net", "sharethrough.com",
+        "teads.tv", "spotxchange.com", "prebid.org", "spotx.tv",
+        "adition.com", "adform.net", "amazon-adsystem.com",
+        "aps.amazon.com", "simpli.fi", "lijit.com", "tapad.com",
+        "brealtime.com", "emxdgt.com", "bidgear.com",
+        "vindicosuite.com", "tribalfusion.com", "stickyadstv.com",
+        "yieldmo.com", "sonobi.com", "nativo.com", "connatix.com",
+        "confiant-integrations.net", "geoedge.be", "iasds01.com",
+        "doubleverify.com", "adsafeprotected.com", "mookie1.com",
+        "undertone.com", "synacor.com", "indexww.com", "33across.com",
+        "krxd.net", "blueconic.net", "chartbeat.com", "parsely.com",
+        "hotjar.com", "fullstory.com", "mouseflow.com", "crazyegg.com",
+        "optimizely.com", "amplitude.com", "mixpanel.com",
+        "appsflyer.com", "kochava.com", "singular.net",
+        "bit.ly", "t.co", "licdn.com", "facebook.com/tr",
+        "facebook.net", "twitter.com/i/adsct", "snap.licdn.com",
+        "clarity.ms", "bat.bing.com", "newrelic.com", "nr-data.net",
+        "onetrust.com", "cookielaw.org", "trustarc.com",
+        "popcash.net", "popmyads.com", "monetag.com",
+        "richpush.com", "galaksion.com", "evadav.com",
+        "trafficstars.com", "zedo.com", "infolinks.com",
+        "viglink.com", "skimlinks.com", "playwire.com",
+        "freewheel.com", "magnite.com", "triplelift.com",
+        "sh.st", "ouo.io", "bc.vc", "shorte.st", "adfoc.us",
+        "linkbucks.com", "cutUrls.com",
+        "coinimp.com", "coinhive.com", "coin-hive.com",
+        "authedmine.com", "crypto-loot.com", "webminepool.com",
+        "minero.pw", "jsecoin.com", "browsermine.com",
+        "coin-service.com", "monerominer.rocks", "coinnebula.com",
+        "ad-maven.com", "hilltopads.com", "ad-shield.io",
+        "freewheel.com", "connatix.com", "minutemediapro.com",
+        "a]dfly.com", "benzinga.com"
+    )
+
+    private val adUrlPatterns = listOf(
+        "/ads/", "/ad/", "/ad_", "/ads_", "/advert/", "/adverts/",
+        "/banner/", "/banners/", "/promo/", "/promos/",
+        "/sponsor/", "/sponsored/",
+        "/popunder", "/pop-up", "/popup",
+        "/tracking/", "/track/", "/pixel/", "/pixels/",
+        "/analytics/", "/stat/", "/stats/",
+        "/vast", "/vpaid", "/dailymotion.com/ad",
+        "/imasdk/", "googlesyndication.com/pagead",
+        "/pagead/", "/adsbygoogle",
+        "doubleclick.net/adj", "doubleclick.net/ddm/",
+        "/prebid/", "/header-bidding/",
+        "/interstitial/", "/splash/", "/overlay/",
+        "/redirect/", "/redir/", "/go/", "/click/",
+        "/out/", "/exit/", "/leave/",
+        "/interstitial-ad", "/preroll", "/midroll", "/postroll",
+        "/companionad", "/vast.xml", "/vast2.xml",
+        "/vast-wrapper", "/ima-", "/googleima",
+        "imasdk.googleapis.com", "/ad_break",
+        "adserver", "/ad-serve", "/adserve",
+        "/adrequest", "/ad_request", "/getad",
+        "/showad", "/show_ads", "/display-ad",
+        "/native-ad", "/sponsored-content"
     )
 
     private val adCssSelectors = listOf(
@@ -294,18 +150,33 @@ class MainActivity : AppCompatActivity() {
         ".ad-unit", ".ad-box", ".ad-block", ".ad-section",
         ".adsbox", ".ads-container", ".ads-wrapper",
         "[data-ad]", "[data-ads]", "[data-adunit]", "[data-adunit-id]",
-        "[data-dfp]", "[data-ad-slot]",
+        "[data-dfp]", "[data-ad-slot]", "[data-ad-id]",
+        "[data-adv]", "[data-promo]", "[data-sponsored]",
         ".banner-ad", ".sidebar-ad", ".footer-ad", ".header-ad",
         ".popup-ad", ".overlay-ad", ".interstitial-ad",
-        ".ad-overlay", ".ad-modal", ".ad-popup",
+        ".ad-overlay", ".ad-modal", ".ad-popup", ".ad-fullscreen",
         "#ad", "#ads", "#advertisement",
-        "#ad-container", "#ad-wrapper", "#ad-banner",
-        ".sponsored", ".promo", ".promotion",
+        "#ad-container", "#ad-wrapper", "#ad-banner", "#ad-overlay",
+        ".sponsored", ".sponsored-content", ".sponsored-post",
+        ".promo", ".promotion", ".promo-banner",
         ".taboola", ".outbrain", ".revcontent", ".mgid",
         ".nativo", ".teads", ".connatix",
         ".popunder", ".pop-under", ".poper",
+        ".adblock", ".adblock-overlay",
+        ".overlay", ".modal-overlay", ".backdrop",
         ".social-toolbar", ".share-bar-floating",
-        ".crypto-miner", ".coin-miner", ".miner-container"
+        ".crypto-miner", ".coin-miner", ".miner-container",
+        ".video-ad", ".video-ads", ".preroll-ad",
+        ".ima-ad-container", ".google-ad-container",
+        ".dfp-ad", ".ad-video", ".player-ad",
+        ".ad-dfp", ".ad-google", ".ad-block-wrapper",
+        ".adLayer", ".ad-layer", ".adZone",
+        ".adElement", ".adv-container", ".adv-banner",
+        "ins.adsbygoogle", "amp-ad", "amp-embed[type=\"adsense\"]",
+        ".commercial-unit-desktop-top", ".commercial-unit-desktop-rhs",
+        "[id*=\"google_ads\"]", "[id*=\"ad-\"]", "[id*=\"ads-\"]",
+        "[class*=\"ad-true\"]", "[class*=\"ad-false\"]",
+        "[class*=\"banner\"]", "[class*=\"promo\"]"
     )
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -365,6 +236,9 @@ class MainActivity : AppCompatActivity() {
                 val esAd = adHostFragments.any { host.contains(it) }
                 if (esAd) return true
 
+                val esAdUrl = adUrlPatterns.any { url.contains(it) }
+                if (esAdUrl) return true
+
                 val esRedirecSospechoso = url.contains("/redirect") ||
                     url.contains("/click") ||
                     url.contains("/track") ||
@@ -372,7 +246,7 @@ class MainActivity : AppCompatActivity() {
                     url.contains("/go/") ||
                     url.contains("/out/") ||
                     url.contains("utm_source") && !host.contains("manglar")
-                if (esRedirecSospechoso && !esConfiable) return true
+                if (esRedirecSospechoso) return true
 
                 return false
             }
@@ -390,6 +264,11 @@ class MainActivity : AppCompatActivity() {
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
                 }
 
+                val esAdUrl = adUrlPatterns.any { url.contains(it) }
+                if (esAdUrl) {
+                    return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+                }
+
                 val esTracker = url.contains("analytics") ||
                     url.contains("/tracking") ||
                     url.contains("/pixel.gif") ||
@@ -399,7 +278,15 @@ class MainActivity : AppCompatActivity() {
                     url.contains("facebook.com/tr") ||
                     url.contains("/gtm.js") ||
                     url.contains("/gtag/") ||
-                    url.contains("adsbygoogle")
+                    url.contains("adsbygoogle") ||
+                    url.contains("imasdk") ||
+                    url.contains("vast.xml") ||
+                    url.contains("vpaid") ||
+                    url.contains("preroll") ||
+                    url.contains("midroll") ||
+                    url.contains("postroll") ||
+                    url.contains("/ad_break") ||
+                    url.contains("googlesyndication")
 
                 if (esTracker) {
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
@@ -450,7 +337,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun inyectarBloqueoAds() {
         val selectorStr = adCssSelectors.joinToString(", ") { it }
-        val hostListStr = adHostFragments.take(60).joinToString(",") { "\"$it\"" }
+        val hostListStr = adHostFragments.take(80).joinToString(",") { "\"$it\"" }
 
         val js = """
             (function() {
@@ -461,7 +348,7 @@ class MainActivity : AppCompatActivity() {
 
                 var style = document.createElement('style');
                 style.id = '__manglar_adblock';
-                style.textContent = '$selectorStr { display: none !important; visibility: hidden !important; height: 0 !important; max-height: 0 !important; overflow: hidden !important; opacity: 0 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; }';
+                style.textContent = '$selectorStr { display: none !important; visibility: hidden !important; height: 0 !important; max-height: 0 !important; overflow: hidden !important; opacity: 0 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; position: absolute !important; left: -9999px !important; } .overlay, .modal, .backdrop, [class*="overlay"], [class*="modal"] { z-index: -9999 !important; pointer-events: none !important; } body { overflow: auto !important; }';
                 document.head.appendChild(style);
 
                 function isAdUrl(src) {
@@ -476,35 +363,95 @@ class MainActivity : AppCompatActivity() {
                 function eliminarAds() {
                     try {
                         var ads = document.querySelectorAll('$selectorStr');
-                        for (var i = 0; i < ads.length; i++) {
-                            if (ads[i] && ads[i].parentNode) ads[i].parentNode.removeChild(ads[i]);
+                        for (var i = ads.length - 1; i >= 0; i--) {
+                            if (ads[i] && ads[i].parentNode) {
+                                ads[i].parentNode.removeChild(ads[i]);
+                            }
                         }
 
                         var iframes = document.querySelectorAll('iframe');
-                        for (var i = 0; i < iframes.length; i++) {
-                            if (isAdUrl(iframes[i].src) && iframes[i].parentNode) {
+                        for (var i = iframes.length - 1; i >= 0; i--) {
+                            var src = (iframes[i].src || '').toLowerCase();
+                            var name = (iframes[i].name || '').toLowerCase();
+                            var id = (iframes[i].id || '').toLowerCase();
+                            var isAd = isAdUrl(src) ||
+                                name.indexOf('ad') !== -1 ||
+                                name.indexOf('google') !== -1 ||
+                                id.indexOf('ad') !== -1 ||
+                                id.indexOf('google') !== -1 ||
+                                src.indexOf('ad') !== -1 && src.indexOf('manglar') === -1;
+                            if (isAd && iframes[i].parentNode) {
                                 iframes[i].parentNode.removeChild(iframes[i]);
                             }
                         }
 
                         var scripts = document.querySelectorAll('script[src]');
-                        for (var i = 0; i < scripts.length; i++) {
-                            if (isAdUrl(scripts[i].src) && scripts[i].parentNode) {
+                        for (var i = scripts.length - 1; i >= 0; i--) {
+                            var src = (scripts[i].src || '').toLowerCase();
+                            if (isAdUrl(src) && scripts[i].parentNode) {
                                 scripts[i].parentNode.removeChild(scripts[i]);
                             }
+                        }
+
+                        var overlays = document.querySelectorAll('[style*="position: fixed"], [style*="position:fixed"]');
+                        for (var i = overlays.length - 1; i >= 0; i--) {
+                            var el = overlays[i];
+                            var rect = el.getBoundingClientRect();
+                            if (rect.width > 200 && rect.height > 200 && el.tagName !== 'VIDEO') {
+                                el.style.display = 'none';
+                            }
+                        }
+
+                        var bigFixed = document.querySelectorAll('div[style*="z-index: 9999"], div[style*="z-index:9999"], div[style*="z-index: 99999"], div[style*="z-index:99999"]');
+                        for (var i = bigFixed.length - 1; i >= 0; i--) {
+                            bigFixed[i].style.display = 'none';
                         }
                     } catch(e) {}
                 }
 
+                function bloquearPopups() {
+                    try {
+                        window.open = function() { return null; };
+                        document.createElement = function(tag) {
+                            if (tag.toLowerCase() === 'iframe') {
+                                var iframe = document._createElementOriginal ? document._createElementOriginal(tag) : document.createElement.__proto__.call(document, tag);
+                                var origSetAttribute = iframe.setAttribute;
+                                iframe.setAttribute = function(name, value) {
+                                    if (name === 'src' && value) {
+                                        var v = value.toLowerCase();
+                                        for (var i = 0; i < adHosts.length; i++) {
+                                            if (v.indexOf(adHosts[i]) !== -1) return;
+                                        }
+                                    }
+                                    return origSetAttribute.call(this, name, value);
+                                };
+                                return iframe;
+                            }
+                            return document.createElement.__proto__.call(document, tag);
+                        };
+                    } catch(e) {}
+                }
+
                 eliminarAds();
-                var observer = new MutationObserver(function() { eliminarAds(); });
+                bloquearPopups();
+
+                var observer = new MutationObserver(function(mutations) {
+                    for (var m = 0; m < mutations.length; m++) {
+                        if (mutations[m].addedNodes.length > 0) {
+                            eliminarAds();
+                        }
+                    }
+                });
                 observer.observe(document.body || document.documentElement, {
                     childList: true,
                     subtree: true
                 });
-                setTimeout(eliminarAds, 500);
-                setTimeout(eliminarAds, 1500);
-                setTimeout(eliminarAds, 3000);
+
+                setTimeout(eliminarAds, 300);
+                setTimeout(eliminarAds, 800);
+                setTimeout(eliminarAds, 2000);
+                setTimeout(eliminarAds, 5000);
+                setInterval(eliminarAds, 3000);
             })();
         """.trimIndent()
 
