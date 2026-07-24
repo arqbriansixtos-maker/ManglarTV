@@ -1,7 +1,6 @@
 package com.manglar.tv
 
 import android.annotation.SuppressLint
-import android.net.Uri
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -30,52 +29,16 @@ class MainActivity : AppCompatActivity() {
     private val allowedHostSuffixes = listOf(
         "manglar.fun",
         "manglarpelis.manglar.fun",
-        "cloudfront.net",
-        "amazonaws.com",
-        "googleapis.com",
-        "gstatic.com",
-        "youtube.com",
-        "ytimg.com",
-        "vimeo.com",
-        "jwpcdn.com",
-        "jwpltx.com",
-        "jwpsrv.com",
-        "jwswire.com",
-        "flowplayer.org",
-        "flowplayer.com",
-        "akamaized.net",
-        "cloudflare.com",
-        "fontawesome.com",
         "fonts.googleapis.com",
         "fonts.gstatic.com",
         "cdnjs.cloudflare.com",
-        "jquery.com",
-        "bootstrapcdn.com",
-        "tmdb.org",
-        "themoviedb.org",
-        "image.tmdb.org",
-        "imdb.com",
-        "dailymotion.com",
-        "dmcdn.net",
-        "dailymotion-video.com",
-        "facebook.com",
-        "fbcdn.net",
-        "instagram.com",
-        "tiktok.com",
-        "cdn77.org",
-        "fastly.net",
-        "hwcdn.net",
-        "bitgravity.com",
-        "limelight.com",
-        "cdn.bitgravity.com",
-        "akamaihd.net",
-        "statics.cloud"
+        "cdn.jsdelivr.net"
     )
 
     private val adHostFragments = listOf(
         "doubleclick.net", "googlesyndication.com", "google-analytics.com",
         "googletagmanager.com", "googletagservices.com", "adservice.google",
-        "pagead2.googlesyndication", "ads.google.com", "adsense",
+        "pagead2.googlesyndication", "ads.google.com",
         "propellerads.com", "propeller-ads.com", "popads.net", "poper.pro",
         "exoclick.com", "juicyads.com", "adsterra.com", "adnxs.com",
         "taboola.com", "outbrain.com", "revcontent.com", "mgid.com",
@@ -86,37 +49,47 @@ class MainActivity : AppCompatActivity() {
         "moatads.com", "quantserve.com", "scorecardresearch.com",
         "bluekai.com", "demdex.net", "everesttech.net", "turn.com",
         "mathtag.com", "serving-sys.com", "bidswitch.net", "sharethrough.com",
-        "teads.tv", "spotxchange.com", "prebid.org", "spotx.tv",
-        "adition.com", "adform.net", "amazon-adsystem.com",
-        "aps.amazon.com", "simpli.fi", "lijit.com", "tapad.com",
-        "brealtime.com", "emxdgt.com", "bidgear.com",
-        "vindicosuite.com", "tribalfusion.com", "stickyadstv.com",
+        "teads.tv", "prebid.org", "adition.com", "adform.net",
+        "amazon-adsystem.com", "aps.amazon.com", "simpli.fi",
         "yieldmo.com", "sonobi.com", "nativo.com", "connatix.com",
-        "confiant-integrations.net", "geoedge.be", "iasds01.com",
-        "doubleverify.com", "adsafeprotected.com", "mookie1.com",
-        "undertone.com", "synacor.com", "indexww.com", "33across.com",
-        "krxd.net", "blueconic.net", "chartbeat.com", "parsely.com",
-        "hotjar.com", "fullstory.com", "mouseflow.com", "crazyegg.com",
-        "optimizely.com", "amplitude.com", "mixpanel.com",
-        "appsflyer.com", "kochava.com", "singular.net",
-        "bit.ly", "t.co", "licdn.com", "facebook.com/tr",
-        "facebook.net", "twitter.com/i/adsct", "snap.licdn.com",
-        "clarity.ms", "bat.bing.com", "newrelic.com", "nr-data.net",
-        "onetrust.com", "cookielaw.org", "trustarc.com",
+        "confiant-integrations.net", "geoedge.be", "doubleverify.com",
+        "adsafeprotected.com", "indexww.com", "33across.com",
+        "chartbeat.com", "parsely.com", "hotjar.com", "clarity.ms",
+        "facebook.com/tr", "facebook.net", "twitter.com/i/adsct",
+        "snap.licdn.com", "bat.bing.com", "onetrust.com", "cookielaw.org",
         "popcash.net", "popmyads.com", "monetag.com",
-        "richpush.com", "galaksion.com", "evadav.com",
         "trafficstars.com", "zedo.com", "infolinks.com",
-        "viglink.com", "skimlinks.com", "playwire.com",
-        "freewheel.com", "magnite.com", "triplelift.com",
-        "sh.st", "ouo.io", "bc.vc", "shorte.st", "adfoc.us",
-        "linkbucks.com", "cutUrls.com",
+        "playwire.com", "magnite.com", "triplelift.com",
         "coinimp.com", "coinhive.com", "coin-hive.com",
         "authedmine.com", "crypto-loot.com", "webminepool.com",
-        "minero.pw", "jsecoin.com", "browsermine.com",
-        "coin-service.com", "monerominer.rocks", "coinnebula.com",
-        "ad-maven.com", "hilltopads.com", "ad-shield.io",
-        "freewheel.com", "connatix.com", "minutemediapro.com",
-        "a]dfly.com", "benzinga.com"
+        "jsecoin.com", "browsermine.com",
+        "ad-maven.com", "ad-shield.io", "coinnebula.com",
+        "sh.st", "ouo.io", "bc.vc", "shorte.st", "adfoc.us",
+        "linkbucks.com", "adition.com",
+        "bit.ly", "t.co",
+        "googletagmanager.com/gtm.js",
+        "googlesyndication.com/pagead",
+        "amazon-adsystem.com/aax2",
+        "amazon-adsystem.com",
+        "imasdk.googleapis.com",
+        "jivox.com", "spotxchange.com",
+        "stickyadstv.com", "tribalfusion.com",
+        "freewheel.com", "freewheel.tv",
+        "vindicosuite.com", "sociomantic.com",
+        "ad4game.com", "doubleclick.net",
+        "yieldmo.com", "sharethrough.com",
+        "teads.tv", "connatix.com",
+        "minutemediapro.com", "playwire.com",
+        "ad-maven.com", "monetag.com",
+        "richpush.com", "galaksion.com", "evadav.com",
+        "trafficstars.com", "benzinga.com",
+        "bongacams.com", "livejasmin.com", "chaturbate.com",
+        "crakrevenue.com", "exoticads.com", "ero-advertising.com",
+        "adscendmedia.com", "content.ad", "speakol.com",
+        "voluum.com", "zpushkovn.com",
+        "casino", "casinoo", "bet365", "betsson", "pokerstars",
+        "1xbet", "betway", "draftkings", "fanduel",
+        "yahoo.com", "bing.com/search"
     )
 
     private val adUrlPatterns = listOf(
@@ -217,16 +190,23 @@ class MainActivity : AppCompatActivity() {
 
                 if (url.startsWith("javascript:")) return false
 
-                val esConfiable = allowedHostSuffixes.any { host == it || host.endsWith(".$it") }
-                if (esConfiable) return false
+                val esManglar = host.endsWith("manglar.fun")
+                if (esManglar) return false
 
-                val esAd = adHostFragments.any { host.contains(it) }
-                if (esAd) return true
+                val esRecursoEstatico = url.contains("fonts.googleapis.com") ||
+                    url.contains("fonts.gstatic.com") ||
+                    url.contains("cdnjs.cloudflare.com") ||
+                    url.contains("cdn.jsdelivr.net") ||
+                    url.endsWith(".css") ||
+                    url.endsWith(".js") && !url.contains("ads") ||
+                    url.endsWith(".png") ||
+                    url.endsWith(".jpg") ||
+                    url.endsWith(".svg") ||
+                    url.endsWith(".woff") ||
+                    url.endsWith(".woff2")
+                if (esRecursoEstatico) return false
 
-                val esAdUrl = adUrlPatterns.any { url.contains(it) }
-                if (esAdUrl) return true
-
-                return false
+                return true
             }
 
             override fun shouldInterceptRequest(
@@ -236,6 +216,17 @@ class MainActivity : AppCompatActivity() {
                 val url = request?.url?.toString()?.lowercase()
                     ?: return super.shouldInterceptRequest(view, request)
                 val host = request.url?.host?.lowercase() ?: ""
+
+                if (host.endsWith("manglar.fun")) {
+                    val esAdEnManglar = url.contains("/ads/") ||
+                        url.contains("/advert/") ||
+                        url.contains("pagead") ||
+                        url.contains("adsbygoogle")
+                    if (esAdEnManglar) {
+                        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
 
                 val esAd = adHostFragments.any { host.contains(it) }
                 if (esAd) {
@@ -252,7 +243,15 @@ class MainActivity : AppCompatActivity() {
                     url.contains("imasdk") ||
                     url.contains("googlesyndication") ||
                     url.contains("/vast.xml") ||
-                    url.contains("/vast2.xml")
+                    url.contains("/vast2.xml") ||
+                    url.contains("doubleclick.net") ||
+                    url.contains("/preroll") ||
+                    url.contains("/midroll") ||
+                    url.contains("/postroll") ||
+                    url.contains("prebid") ||
+                    url.contains("/ad_break") ||
+                    url.contains("/vast") ||
+                    url.contains("/vpaid")
 
                 if (esTracker) {
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
@@ -360,12 +359,72 @@ class MainActivity : AppCompatActivity() {
                     } catch(e) {}
                 }
 
+                function bloquearVideoAds() {
+                    try {
+                        if (window.videojs) {
+                            window.videojs.VAST = window.videojs.VAST || {};
+                        }
+                        var videos = document.querySelectorAll('video');
+                        for (var i = 0; i < videos.length; i++) {
+                            var v = videos[i];
+                            if (v._adBlocked) continue;
+                            v._adBlocked = true;
+                            var origPlay = v.play;
+                            v.play = function() {
+                                if (this.dataset && this.dataset.adPlaying === 'true') return Promise.resolve();
+                                return origPlay.apply(this, arguments);
+                            };
+                        }
+
+                        if (window.DM && window.DM.player) {
+                            var origPlay2 = window.DM.player.prototype.play;
+                            window.DM.player.prototype.play = function() {
+                                if (this._adPlaying) return;
+                                return origPlay2.apply(this, arguments);
+                            };
+                        }
+
+                        if (window.jwplayer) {
+                            try {
+                                var players = document.querySelectorAll('.jwplayer, [id*="player"]');
+                                for (var i = 0; i < players.length; i++) {
+                                    var p = window.jwplayer(players[i].id);
+                                    if (p && p.on) {
+                                        p.on('adClick', function(e) { e.preventDefault && e.preventDefault(); });
+                                    }
+                                }
+                            } catch(e) {}
+                        }
+                    } catch(e) {}
+                }
+
+                function bloquearPopunders() {
+                    try {
+                        window.open = function() { return null; };
+                        var origTarget = window.HTMLAnchorElement.prototype.__lookupSetter__('target');
+                        if (origTarget) {
+                            Object.defineProperty(window.HTMLAnchorElement.prototype, 'target', {
+                                set: function(v) {
+                                    if (v === '_blank') v = '_self';
+                                    origTarget.call(this, v);
+                                },
+                                get: function() {
+                                    return origTarget ? origTarget.call(this) : '_self';
+                                }
+                            });
+                        }
+                    } catch(e) {}
+                }
+
                 eliminarAds();
+                bloquearVideoAds();
+                bloquearPopunders();
 
                 var observer = new MutationObserver(function(mutations) {
                     for (var m = 0; m < mutations.length; m++) {
                         if (mutations[m].addedNodes.length > 0) {
                             eliminarAds();
+                            bloquearVideoAds();
                         }
                     }
                 });
@@ -376,6 +435,7 @@ class MainActivity : AppCompatActivity() {
 
                 setTimeout(eliminarAds, 500);
                 setTimeout(eliminarAds, 2000);
+                setTimeout(eliminarAds, 5000);
             })();
         """.trimIndent()
 
