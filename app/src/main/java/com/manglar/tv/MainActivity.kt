@@ -449,15 +449,23 @@ class MainActivity : AppCompatActivity() {
                 window.__tvNavInstalado = true;
 
                 var style = document.createElement('style');
-                style.innerHTML = '.tv-focus{outline:4px solid #00e5ff !important;outline-offset:2px !important;}';
+                style.id = '__tv_nav_style';
+                style.textContent = '\
+                    .tv-focus{outline:4px solid #00e5ff !important;outline-offset:3px !important;border-radius:4px !important;box-shadow:0 0 12px rgba(0,229,255,0.5) !important;}\
+                    .tv-focus-scroll{scroll-behavior:smooth !important;}\
+                    *{scroll-behavior:auto !important;}\
+                ';
                 document.head.appendChild(style);
+
+                var SEL = 'a[href], button, input, select, textarea, [tabindex], [onclick], [role="button"], [role="link"], [role="tab"], [role="menuitem"], .card, .item, .poster, .movie, .film, .episode, .server, .btn, .play-btn, .play-button, .source-btn, .video-btn, [class*="play"], [class*="btn"], [class*="card"], [class*="poster"], [class*="movie"], [class*="episode"], [class*="server"], [class*="item"], li a, nav a, .nav-link, .menu-item, .dropdown-item, [class*="nav"] a, [class*="menu"] a';
 
                 function elementosFocables() {
                     return Array.prototype.slice.call(
-                        document.querySelectorAll('a, button, input, [tabindex], [onclick], .card, .item, .poster')
+                        document.querySelectorAll(SEL)
                     ).filter(function(el) {
                         var r = el.getBoundingClientRect();
-                        return r.width > 0 && r.height > 0;
+                        var s = window.getComputedStyle(el);
+                        return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
                     });
                 }
 
@@ -468,7 +476,8 @@ class MainActivity : AppCompatActivity() {
                     actual = el;
                     if (actual) {
                         actual.classList.add('tv-focus');
-                        actual.scrollIntoView({block: 'center', behavior: 'smooth'});
+                        actual.scrollIntoView({block: 'center', inline: 'center', behavior: 'smooth'});
+                        actual.focus();
                     }
                 }
 
@@ -480,28 +489,70 @@ class MainActivity : AppCompatActivity() {
                 function moverFoco(direccion) {
                     var candidatos = elementosFocables();
                     if (!candidatos.length) return;
+
                     if (!actual || candidatos.indexOf(actual) === -1) {
                         marcarFoco(candidatos[0]);
                         return;
                     }
+
                     var origen = centro(actual);
-                    var mejor = null, mejorDist = Infinity;
+                    var mejor = null, mejorScore = -Infinity;
 
                     candidatos.forEach(function(el) {
                         if (el === actual) return;
                         var p = centro(el);
-                        var dx = p.x - origen.x, dy = p.y - origen.y;
-                        var valido = false;
-                        if (direccion === 'up' && dy < -5) valido = true;
-                        if (direccion === 'down' && dy > 5) valido = true;
-                        if (direccion === 'left' && dx < -5) valido = true;
-                        if (direccion === 'right' && dx > 5) valido = true;
-                        if (!valido) return;
+                        var dx = p.x - origen.x;
+                        var dy = p.y - origen.y;
+                        var angulo = Math.atan2(dy, dx) * 180 / Math.PI;
                         var dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist < mejorDist) { mejorDist = dist; mejor = el; }
+
+                        var valido = false;
+                        var tolerancia = 45;
+
+                        if (direccion === 'up') {
+                            if (angulo < -90 + tolerancia && angulo > -90 - tolerancia) valido = true;
+                            if (angulo > 90 || angulo < -90) valido = false;
+                            if (dy < -10) valido = true;
+                        }
+                        if (direccion === 'down') {
+                            if (angulo > 90 - tolerancia && angulo < 90 + tolerancia) valido = true;
+                            if (dy > 10) valido = true;
+                        }
+                        if (direccion === 'left') {
+                            if (angulo > 180 - tolerancia || angulo < -180 + tolerancia) valido = true;
+                            if (dx < -10) valido = true;
+                        }
+                        if (direccion === 'right') {
+                            if (angulo < tolerancia && angulo > -tolerancia) valido = true;
+                            if (dx > 10) valido = true;
+                        }
+
+                        if (!valido) return;
+
+                        var score = -dist;
+                        if (score > mejorScore) { mejorScore = score; mejor = el; }
                     });
 
                     if (mejor) marcarFoco(mejor);
+                }
+
+                function autoFullscreen() {
+                    var videos = document.querySelectorAll('video');
+                    for (var i = 0; i < videos.length; i++) {
+                        var v = videos[i];
+                        if (v._tvFullscreenBinded) continue;
+                        v._tvFullscreenBinded = true;
+
+                        v.addEventListener('playing', function() {
+                            try {
+                                var container = this.closest('.player, .video-player, [class*="player"], [id*="player"]') || this.parentElement;
+                                if (container && !document.fullscreenElement && !document.webkitFullscreenElement) {
+                                    if (container.requestFullscreen) container.requestFullscreen();
+                                    else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+                                }
+                            } catch(e) {}
+                        });
+                    }
                 }
 
                 window.__tvNav = {
@@ -511,7 +562,21 @@ class MainActivity : AppCompatActivity() {
                     }
                 };
 
+                autoFullscreen();
                 marcarFoco(elementosFocables()[0]);
+
+                var obs = new MutationObserver(function() {
+                    setTimeout(autoFullscreen, 1000);
+                    setTimeout(function() {
+                        var nuevo = elementosFocables();
+                        if (actual && nuevo.indexOf(actual) === -1 && nuevo.length > 0) {
+                            marcarFoco(nuevo[0]);
+                        }
+                    }, 500);
+                });
+                obs.observe(document.body || document.documentElement, {childList: true, subtree: true});
+
+                setInterval(autoFullscreen, 3000);
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
@@ -546,7 +611,28 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
+                webView.evaluateJavascript(
+                    """
+                    (function() {
+                        var v = document.querySelector('video');
+                        if (v && !v.paused) { v.pause(); }
+                        else if (v && v.paused) { v.play(); }
+                        else { window.__tvNav && window.__tvNav.click(); }
+                    })();
+                    """.trimIndent(), null
+                )
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                webView.evaluateJavascript(
+                    "var v=document.querySelector('video');if(v){if(v.paused)v.play();else v.pause();}", null
+                )
+                return true
+            }
+            KeyEvent.KEYCODE_MENU -> {
+                webView.evaluateJavascript(
+                    "window.__tvNav && window.__tvNav.move('down')", null
+                )
                 return true
             }
         }
