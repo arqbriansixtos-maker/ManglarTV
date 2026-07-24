@@ -25,28 +25,287 @@ class MainActivity : AppCompatActivity() {
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
 
-    // 1) Página principal: sin el parámetro ?title=..., directo a la home
     private val targetUrl = "https://manglarpelis.manglar.fun/"
 
-    // Dominio(s) que sí consideramos "de confianza" para navegar dentro del WebView.
-    // Todo lo que no coincida con esto se trata como posible redirect/pop-under y se bloquea.
     private val allowedHostSuffixes = listOf(
-        "manglar.fun"
-        // agrega aquí, si hace falta, dominios de CDNs de video legítimos que use el sitio,
-        // ej: "some-video-cdn.com". Si el video no carga tras esto, revisa el log de
-        // shouldOverrideUrlLoading para ver qué host está siendo bloqueado.
+        "manglar.fun",
+        "cloudfront.net",
+        "amazonaws.com",
+        "googleapis.com",
+        "gstatic.com",
+        "youtube.com",
+        "ytimg.com",
+        "vimeo.com",
+        "jwpcdn.com",
+        "jwpltx.com",
+        "flowplayer.org",
+        "flowplayer.com",
+        "cdn.flowplayer.org",
+        "hls.ru",
+        "akamaized.net",
+        "cloudflare.com",
+        "fontawesome.com",
+        "fonts.googleapis.com",
+        "fonts.gstatic.com",
+        "cdnjs.cloudflare.com",
+        "jquery.com",
+        "bootstrapcdn.com",
+        "tmdb.org",
+        "themoviedb.org",
+        "image.tmdb.org",
+        "imdb.com",
+        "manglarpelis.manglar.fun"
     )
 
-    // 2) Lista negra de dominios de ads/tracking conocidos (capa extra, además del bloqueo estructural)
     private val adHostFragments = listOf(
-        "doubleclick.net", "googlesyndication.com", "google-analytics.com",
-        "googletagmanager.com", "googletagservices.com", "adservice.google",
-        "propellerads.com", "propeller-ads.com", "popads.net", "poper.pro",
-        "exoclick.com", "juicyads.com", "adsterra.com", "adnxs.com",
-        "taboola.com", "outbrain.com", "revcontent.com", "mgid.com",
-        "clickadu.com", "hilltopads.net", "adcash.com", "yllix.com",
-        "trafficjunky.net", "adskeeper.co.uk", "smartadserver.com",
-        "onclickmax.com", "adsco.re", "media.net"
+        "doubleclick.net",
+        "googlesyndication.com",
+        "google-analytics.com",
+        "googletagmanager.com",
+        "googletagservices.com",
+        "adservice.google",
+        "pagead2.googlesyndication",
+        "ads.google.com",
+        "propellerads.com",
+        "propeller-ads.com",
+        "popads.net",
+        "poper.pro",
+        "exoclick.com",
+        "juicyads.com",
+        "adsterra.com",
+        "adnxs.com",
+        "taboola.com",
+        "outbrain.com",
+        "revcontent.com",
+        "mgid.com",
+        "clickadu.com",
+        "hilltopads.net",
+        "adcash.com",
+        "yllix.com",
+        "trafficjunky.net",
+        "adskeeper.co.uk",
+        "smartadserver.com",
+        "onclickmax.com",
+        "adsco.re",
+        "media.net",
+        "criteo.com",
+        "criteo.net",
+        "casalemedia.com",
+        "pubmatic.com",
+        "rubiconproject.com",
+        "openx.net",
+        "moatads.com",
+        "quantserve.com",
+        "scorecardresearch.com",
+        "bluekai.com",
+        "demdex.net",
+        "everesttech.net",
+        "turn.com",
+        "mathtag.com",
+        "serving-sys.com",
+        "bidswitch.net",
+        "sharethrough.com",
+        "teads.tv",
+        "spotxchange.com",
+        "prebid.org",
+        "spotx.tv",
+        "adition.com",
+        "adform.net",
+        "adobedtm.com",
+        "amazon-adsystem.com",
+        "aps.amazon.com",
+        "aps.amazon-adsystem.com",
+        "contextual.media.net",
+        "simpli.fi",
+        "lijit.com",
+        "tapad.com",
+        "brealtime.com",
+        "emxdgt.com",
+        "adsymptotic.com",
+        "corra.com",
+        "bidgear.com",
+        "vindicosuite.com",
+        "tribalfusion.com",
+        "stickyadstv.com",
+        "yieldmo.com",
+        "sonobi.com",
+        "nativo.com",
+        "nativo.net",
+        "connatix.com",
+        "connatix.com.cdn",
+        "confiant-integrations.net",
+        "geoedge.be",
+        "iasds01.com",
+        "doubleverify.com",
+        "adsafeprotected.com",
+        "izatcloud.net",
+        "mookie1.com",
+        "tribalfusion.com",
+        "undertone.com",
+        "synacor.com",
+        "indexww.com",
+        "33across.com",
+        "krxd.net",
+        "blueconic.net",
+        "chartbeat.com",
+        "chartbeat.net",
+        "parsely.com",
+        "hotjar.com",
+        "fullstory.com",
+        "mouseflow.com",
+        "crazyegg.com",
+        "optimizely.com",
+        "segment.io",
+        "segment.com",
+        "amplitude.com",
+        "mixpanel.com",
+        "branch.io",
+        "adjust.com",
+        "appsflyer.com",
+        "kochava.com",
+        "singular.net",
+        "hasoffers.com",
+        "impact.com",
+        "partnerstack.com",
+        "clickmeter.com",
+        "bit.ly",
+        "t.co",
+        "adobe.com",
+        "omtrdc.net",
+        "2o7.net",
+        "demdex.net",
+        "everesttech.net",
+        "licdn.com",
+        "ads.linkedin.com",
+        "facebook.com/tr",
+        "facebook.net",
+        "fbcdn.net",
+        "twitter.com/i/adsct",
+        "snap.licdn.com",
+        "bing.com/bat.js",
+        "clarity.ms",
+        "bat.bing.com",
+        "newrelic.com",
+        "nr-data.net",
+        "sentry.io",
+        "bugsnag.com",
+        "rollbar.com",
+        "cookieselection.com",
+        "onetrust.com",
+        "cookielaw.org",
+        "trustarc.com",
+        "evidon.com",
+        "sourcepoint.mgr.consensu.org",
+        "privacymanager.io",
+        "kampyle.com",
+        "medallia.com",
+        "surveymonkey.com",
+        "qualaroo.com",
+        "optinmonster.com",
+        "sumo.com",
+        "sumome.com",
+        "sumo.ly",
+        "adcash.com",
+        "popcash.net",
+        "popmyads.com",
+        "monetizer101.com",
+        "exoclick.com",
+        "trafficjunky.com",
+        "trafficjunky.net",
+        "juicyads.com",
+        "exoticads.com",
+        "ero-advertising.com",
+        "adscendmedia.com",
+        "content.ad",
+        "speakol.com",
+        "newspepper.com",
+        "dafunkid.com",
+        "voluum.com",
+        "zpushkovn.com",
+        "bongacams.com",
+        "livejasmin.com",
+        "chaturbate.com",
+        "crakrevenue.com",
+        "hilltopads.net",
+        "onclickadu.com",
+        "ad-maven.com",
+        "monetag.com",
+        "richpush.com",
+        "galaksion.com",
+        "losrados.com",
+        "evadav.com",
+        "crakRevenue.com",
+        "trafficstars.com",
+        "benzinga.com",
+        "zedo.com",
+        "serving-sys.com",
+        "sociomantic.com",
+        "ad4game.com",
+        "infolinks.com",
+        "viglink.com",
+        "skimlinks.com",
+        "nativo.com",
+        "teads.tv",
+        "connatix.com",
+        "minutemediapro.com",
+        "jwplayer.com",
+        "playwire.com",
+        "freewheel.com",
+        "freewheel.com",
+        "magnite.com",
+        "pubmatic.com",
+        "triplelift.com",
+        "sharethrough.com",
+        "smartadserver.com",
+        "adingo.jp",
+        "a]dfly.com",
+        "sh.st",
+        "ouo.io",
+        "bluemedium.com",
+        "bc.vc",
+        "shorte.st",
+        "adfoc.us",
+        "linkbucks.com",
+        "cutUrls.com",
+        "coinimp.com",
+        "coinhive.com",
+        "coin-hive.com",
+        "authedmine.com",
+        "crypto-loot.com",
+        "webminepool.com",
+        "minero.pw",
+        "minr.pw",
+        "ppoi.org",
+        "jsecoin.com",
+        "browsermine.com",
+        "coin-service.com",
+        "monerominer.rocks",
+        "gridcash.net",
+        "ad-miner.com",
+        "coinlab.biz",
+        "webmine.cz",
+        "minero.cc",
+        "coinnebula.com"
+    )
+
+    private val adCssSelectors = listOf(
+        ".ad", ".ads", ".adv", ".advert", ".advertisement",
+        ".ad-container", ".ad-wrapper", ".ad-banner", ".ad-slot",
+        ".ad-unit", ".ad-box", ".ad-block", ".ad-section",
+        ".adsbox", ".ads-container", ".ads-wrapper",
+        "[data-ad]", "[data-ads]", "[data-adunit]", "[data-adunit-id]",
+        "[data-dfp]", "[data-ad-slot]",
+        ".banner-ad", ".sidebar-ad", ".footer-ad", ".header-ad",
+        ".popup-ad", ".overlay-ad", ".interstitial-ad",
+        ".ad-overlay", ".ad-modal", ".ad-popup",
+        "#ad", "#ads", "#advertisement",
+        "#ad-container", "#ad-wrapper", "#ad-banner",
+        ".sponsored", ".promo", ".promotion",
+        ".taboola", ".outbrain", ".revcontent", ".mgid",
+        ".nativo", ".teads", ".connatix",
+        ".popunder", ".pop-under", ".poper",
+        ".social-toolbar", ".share-bar-floating",
+        ".crypto-miner", ".coin-miner", ".miner-container"
     )
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -76,8 +335,6 @@ class MainActivity : AppCompatActivity() {
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.userAgentString = settings.userAgentString + " ManglarTV/1.0"
 
-        // --- BLOQUEO ESTRUCTURAL DE POP-UNDERS (enfoque B) ---
-        // Evita que JS abra ventanas/pestañas nuevas automáticamente (el mecanismo #1 de pop-under ads)
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.setSupportMultipleWindows(false)
 
@@ -92,32 +349,63 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
+                inyectarBloqueoAds()
                 inyectarNavegacionTV()
             }
 
-            // Bloquea navegación a dominios fuera de la lista blanca (redirects de ads)
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                val host = request?.url?.host ?: return false
+                val url = request?.url?.toString()?.lowercase() ?: return false
+                val host = request.url?.host?.lowercase() ?: return false
+
+                if (url.startsWith("javascript:")) return false
+
                 val esConfiable = allowedHostSuffixes.any { host == it || host.endsWith(".$it") }
-                return if (esConfiable) {
-                    false // permite navegar (retorno false = "no lo intercepto")
-                } else {
-                    true // bloquea: no carga esa URL en el WebView
-                }
+                if (esConfiable) return false
+
+                val esAd = adHostFragments.any { host.contains(it) }
+                if (esAd) return true
+
+                val esRedirecSospechoso = url.contains("/redirect") ||
+                    url.contains("/click") ||
+                    url.contains("/track") ||
+                    url.contains("/pop") ||
+                    url.contains("/go/") ||
+                    url.contains("/out/") ||
+                    url.contains("utm_source") && !host.contains("manglar")
+                if (esRedirecSospechoso && !esConfiable) return true
+
+                return false
             }
 
-            // Bloqueo por lista negra de recursos (banners, scripts de tracking, etc.)
             override fun shouldInterceptRequest(
                 view: WebView?,
                 request: WebResourceRequest?
             ): WebResourceResponse? {
-                val host = request?.url?.host?.lowercase() ?: return super.shouldInterceptRequest(view, request)
+                val url = request?.url?.toString()?.lowercase()
+                    ?: return super.shouldInterceptRequest(view, request)
+                val host = request.url?.host?.lowercase() ?: ""
+
                 val esAd = adHostFragments.any { host.contains(it) }
-                return if (esAd) {
-                    WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-                } else {
-                    super.shouldInterceptRequest(view, request)
+                if (esAd) {
+                    return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
                 }
+
+                val esTracker = url.contains("analytics") ||
+                    url.contains("/tracking") ||
+                    url.contains("/pixel.gif") ||
+                    url.contains("/beacon") ||
+                    url.contains("collect?v=") ||
+                    url.contains("/collect") && host.contains("google") ||
+                    url.contains("facebook.com/tr") ||
+                    url.contains("/gtm.js") ||
+                    url.contains("/gtag/") ||
+                    url.contains("adsbygoogle")
+
+                if (esTracker) {
+                    return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+                }
+
+                return super.shouldInterceptRequest(view, request)
             }
         }
 
@@ -149,8 +437,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Refuerzo: si algo intenta abrir una "ventana nueva" (típico de pop-unders),
-            // no la creamos.
             override fun onCreateWindow(
                 view: WebView?,
                 isDialog: Boolean,
@@ -162,9 +448,69 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 3) Navegación con control remoto (D-Pad): inyecta un pequeño script de
-    // "spatial navigation" para que arriba/abajo/izquierda/derecha muevan el foco
-    // entre elementos clicables de la página, y OK/Enter haga click en el enfocado.
+    private fun inyectarBloqueoAds() {
+        val selectorStr = adCssSelectors.joinToString(", ") { it }
+        val hostListStr = adHostFragments.take(60).joinToString(",") { "\"$it\"" }
+
+        val js = """
+            (function() {
+                if (window.__adBlockInstalado) return;
+                window.__adBlockInstalado = true;
+
+                var adHosts = [$hostListStr];
+
+                var style = document.createElement('style');
+                style.id = '__manglar_adblock';
+                style.textContent = '$selectorStr { display: none !important; visibility: hidden !important; height: 0 !important; max-height: 0 !important; overflow: hidden !important; opacity: 0 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; }';
+                document.head.appendChild(style);
+
+                function isAdUrl(src) {
+                    if (!src) return false;
+                    var s = src.toLowerCase();
+                    for (var i = 0; i < adHosts.length; i++) {
+                        if (s.indexOf(adHosts[i]) !== -1) return true;
+                    }
+                    return false;
+                }
+
+                function eliminarAds() {
+                    try {
+                        var ads = document.querySelectorAll('$selectorStr');
+                        for (var i = 0; i < ads.length; i++) {
+                            if (ads[i] && ads[i].parentNode) ads[i].parentNode.removeChild(ads[i]);
+                        }
+
+                        var iframes = document.querySelectorAll('iframe');
+                        for (var i = 0; i < iframes.length; i++) {
+                            if (isAdUrl(iframes[i].src) && iframes[i].parentNode) {
+                                iframes[i].parentNode.removeChild(iframes[i]);
+                            }
+                        }
+
+                        var scripts = document.querySelectorAll('script[src]');
+                        for (var i = 0; i < scripts.length; i++) {
+                            if (isAdUrl(scripts[i].src) && scripts[i].parentNode) {
+                                scripts[i].parentNode.removeChild(scripts[i]);
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                eliminarAds();
+                var observer = new MutationObserver(function() { eliminarAds(); });
+                observer.observe(document.body || document.documentElement, {
+                    childList: true,
+                    subtree: true
+                });
+                setTimeout(eliminarAds, 500);
+                setTimeout(eliminarAds, 1500);
+                setTimeout(eliminarAds, 3000);
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(js, null)
+    }
+
     private fun inyectarNavegacionTV() {
         val js = """
             (function() {
