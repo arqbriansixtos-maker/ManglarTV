@@ -170,29 +170,19 @@ class MainActivity : AppCompatActivity() {
                 if (dir != null) {
                     webView.evaluateJavascript("window.__tvNav.move('$dir')", null)
                 } else {
-                    val density = resources.displayMetrics.density
-                    val location = IntArray(2)
-                    webView.getLocationOnScreen(location)
                     webView.evaluateJavascript(
                         "JSON.stringify({x:window.__tvNav.getX(),y:window.__tvNav.getY()})"
                     ) { result ->
                         try {
                             val clean = result.replace("\"", "")
                             val obj = org.json.JSONObject(clean)
-                            val cssX = obj.getDouble("x").toFloat()
-                            val cssY = obj.getDouble("y").toFloat()
-                            val screenX = location[0] + cssX * density
-                            val screenY = location[1] + cssY * density
-                            val downTime = SystemClock.uptimeMillis()
-                            var ev = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, screenX, screenY, 0)
-                            webView.dispatchTouchEvent(ev)
-                            ev.recycle()
-                            ev = MotionEvent.obtain(downTime, downTime + 50, MotionEvent.ACTION_UP, screenX, screenY, 0)
-                            webView.dispatchTouchEvent(ev)
-                            ev.recycle()
-                        } catch (e: Exception) {
-                            webView.evaluateJavascript("window.__tvNav.click()", null)
-                        }
+                            val cssX = obj.getDouble("x").toInt()
+                            val cssY = obj.getDouble("y").toInt()
+                            val density = resources.displayMetrics.density
+                            val screenX = (cssX * density).toInt()
+                            val screenY = (cssY * density).toInt()
+                            Runtime.getRuntime().exec(arrayOf("input", "tap", screenX.toString(), screenY.toString()))
+                        } catch (e: Exception) {}
                     }
                 }
                 return true
