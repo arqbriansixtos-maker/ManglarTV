@@ -623,55 +623,48 @@ class MainActivity : AppCompatActivity() {
             (function() {
                 if (window.__tvNav) return;
 
-                var SPEED = 14;
+                var SPEED = 10;
+                var SCROLL_ZONE = 80;
                 var cx = window.innerWidth / 2;
                 var cy = window.innerHeight / 2;
                 var timers = {};
-                var active = false;
 
                 var cursor = document.createElement('div');
                 cursor.id = '__tv_cursor';
-                cursor.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;width:28px;height:28px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(0,229,255,0.7);background:rgba(0,229,255,0.15);left:50%;top:50%;display:none;';
+                cursor.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;width:26px;height:26px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(0,229,255,0.6);background:rgba(0,229,255,0.1);left:50%;top:50%;';
                 document.documentElement.appendChild(cursor);
-
-                function showCursor() {
-                    if (!active) {
-                        active = true;
-                        cursor.style.display = 'block';
-                    }
-                }
-
-                window.addEventListener('keydown', function(e) {
-                    var k = e.keyCode;
-                    if (k >= 37 && k <= 40 || k === 13) {
-                        showCursor();
-                    }
-                }, false);
-
-                window.addEventListener('scroll', function() {
-                    if (!active) return;
-                    window.scrollTo(0, window.scrollY);
-                }, true);
 
                 function draw() {
                     cursor.style.left = cx + 'px';
                     cursor.style.top = cy + 'px';
                 }
 
+                function autoScroll() {
+                    var vh = window.innerHeight;
+                    if (cy > vh - SCROLL_ZONE) {
+                        window.scrollBy(0, 6);
+                    }
+                    if (cy < SCROLL_ZONE) {
+                        window.scrollBy(0, -6);
+                    }
+                }
+
                 function move(dir) {
-                    showCursor();
                     if (timers[dir]) return;
                     timers[dir] = setInterval(function() {
                         if (dir === 'up') cy -= SPEED;
                         if (dir === 'down') cy += SPEED;
                         if (dir === 'left') cx -= SPEED;
                         if (dir === 'right') cx += SPEED;
-                        if (cx < 10) cx = 10;
-                        if (cy < 10) cy = 10;
-                        if (cx > window.innerWidth - 10) cx = window.innerWidth - 10;
-                        if (cy > window.innerHeight - 10) cy = window.innerHeight - 10;
+                        if (cx < 5) cx = 5;
+                        if (cy < 5) cy = 5;
+                        var vw = window.innerWidth;
+                        var vh = window.innerHeight;
+                        if (cx > vw - 5) cx = vw - 5;
+                        if (cy > vh - 5) cy = vh - 5;
                         draw();
-                    }, 20);
+                        autoScroll();
+                    }, 25);
                 }
 
                 function stop(dir) {
@@ -679,14 +672,13 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 function doClick() {
-                    if (!active) return;
                     cursor.style.display = 'none';
                     var el = document.elementFromPoint(cx, cy);
-                    cursor.style.display = 'block';
+                    cursor.style.display = '';
                     if (!el) return;
 
+                    var target = null;
                     var c = el;
-                    var target = el;
                     for (var i = 0; i < 10; i++) {
                         if (!c || c === document.body || c === document.documentElement) break;
                         if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
@@ -700,10 +692,35 @@ class MainActivity : AppCompatActivity() {
                         c = c.parentElement;
                     }
 
-                    var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
-                    target.dispatchEvent(new MouseEvent('mousedown', opts));
-                    target.dispatchEvent(new MouseEvent('mouseup', opts));
-                    target.dispatchEvent(new MouseEvent('click', opts));
+                    if (target) {
+                        var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
+                        target.dispatchEvent(new MouseEvent('mousedown', opts));
+                        target.dispatchEvent(new MouseEvent('mouseup', opts));
+                        target.dispatchEvent(new MouseEvent('click', opts));
+                    }
+
+                    var videos = document.querySelectorAll('video');
+                    for (var i = 0; i < videos.length; i++) {
+                        if (videos[i].paused) {
+                            videos[i].play().catch(function(){});
+                        }
+                    }
+
+                    var iframes = document.querySelectorAll('iframe');
+                    for (var i = 0; i < iframes.length; i++) {
+                        var src = (iframes[i].src || '').toLowerCase();
+                        if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1 ||
+                            src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 ||
+                            src.indexOf('voe') !== -1) {
+                            try {
+                                iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}), '*');
+                                iframes[i].contentWindow.postMessage('{"event":"play"}', '*');
+                            } catch(e) {}
+                        }
+                    }
+
+                    var spaceEvt = new KeyboardEvent('keydown', {key:' ', code:'Space', keyCode:32, which:32, bubbles:true});
+                    document.dispatchEvent(spaceEvt);
 
                     var r = document.createElement('div');
                     r.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none;width:50px;height:50px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);left:' + cx + 'px;top:' + cy + 'px;opacity:1;transition:opacity 0.3s;';
