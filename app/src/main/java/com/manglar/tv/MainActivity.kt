@@ -124,9 +124,6 @@ class MainActivity : AppCompatActivity() {
         "ins.adsbygoogle", "amp-ad",
         "[id*=\"google_ads\"]",
         "[class*=\"ad-true\"]", "[class*=\"ad-false\"]",
-        "[class*=\"bell\"]", "[class*=\"campana\"]", "[class*=\"notif\"]",
-        "[class*=\"notification-overlay\"]", "[class*=\"push-notification\"]",
-        "[class*=\"subscribe\"]", "[class*=\"subscrib\"]",
         ".jw-icon-notice", ".jw-overlay", ".jw-click-handler",
         "[class*=\"overlay-player\"]", "[class*=\"player-overlay\"]",
         "[class*=\"vast\"]", "[class*=\"preroll\"]",
@@ -148,6 +145,127 @@ class MainActivity : AppCompatActivity() {
 
         configurarWebView()
         webView.loadUrl(targetUrl)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val code = event.keyCode
+
+        if (code == KeyEvent.KEYCODE_DPAD_UP ||
+            code == KeyEvent.KEYCODE_DPAD_DOWN ||
+            code == KeyEvent.KEYCODE_DPAD_LEFT ||
+            code == KeyEvent.KEYCODE_DPAD_RIGHT ||
+            code == KeyEvent.KEYCODE_DPAD_CENTER ||
+            code == KeyEvent.KEYCODE_ENTER
+        ) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val dir = when (code) {
+                    KeyEvent.KEYCODE_DPAD_UP -> "up"
+                    KeyEvent.KEYCODE_DPAD_DOWN -> "down"
+                    KeyEvent.KEYCODE_DPAD_LEFT -> "left"
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
+                    else -> null
+                }
+                if (dir != null) {
+                    webView.evaluateJavascript("window.__tvNav.move('$dir')", null)
+                } else {
+                    webView.evaluateJavascript("window.__tvNav.click()", null)
+                }
+                return true
+            }
+            if (event.action == KeyEvent.ACTION_UP) {
+                val dir = when (code) {
+                    KeyEvent.KEYCODE_DPAD_UP -> "up"
+                    KeyEvent.KEYCODE_DPAD_DOWN -> "down"
+                    KeyEvent.KEYCODE_DPAD_LEFT -> "left"
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
+                    else -> null
+                }
+                if (dir != null) {
+                    webView.evaluateJavascript("window.__tvNav.stop('$dir')", null)
+                }
+                return true
+            }
+        }
+
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when (code) {
+                KeyEvent.KEYCODE_BACK -> {
+                    if (customView != null) {
+                        webView.webChromeClient?.onHideCustomView()
+                        return true
+                    }
+                    if (webView.canGoBack()) {
+                        webView.goBack()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                    webView.evaluateJavascript(
+                        """(function(){
+                            var v=document.querySelector('video');
+                            if(v){if(v.paused)v.play();else v.pause();return;}
+                            var iframes=document.querySelectorAll('iframe');
+                            for(var i=0;i<iframes.length;i++){
+                                var s=(iframes[i].src||'').toLowerCase();
+                                if(s.indexOf('vimeo')!==-1||s.indexOf('player')!==-1||s.indexOf('vidhide')!==-1||s.indexOf('streamwish')!==-1||s.indexOf('voe')!==-1){
+                                    try{iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}),'*');}catch(e){}
+                                }
+                            }
+                        })();""", null
+                    )
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                    webView.evaluateJavascript(
+                        """(function(){
+                            var v=document.querySelector('video');
+                            if(v){v.play();return;}
+                            var iframes=document.querySelectorAll('iframe');
+                            for(var i=0;i<iframes.length;i++){
+                                var s=(iframes[i].src||'').toLowerCase();
+                                if(s.indexOf('vimeo')!==-1||s.indexOf('player')!==-1||s.indexOf('vidhide')!==-1||s.indexOf('streamwish')!==-1||s.indexOf('voe')!==-1){
+                                    try{iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}),'*');}catch(e){}
+                                }
+                            }
+                        })();""", null
+                    )
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                    webView.evaluateJavascript(
+                        """(function(){
+                            var v=document.querySelector('video');
+                            if(v){v.pause();return;}
+                            var iframes=document.querySelectorAll('iframe');
+                            for(var i=0;i<iframes.length;i++){
+                                var s=(iframes[i].src||'').toLowerCase();
+                                if(s.indexOf('vimeo')!==-1||s.indexOf('player')!==-1||s.indexOf('vidhide')!==-1||s.indexOf('streamwish')!==-1||s.indexOf('voe')!==-1){
+                                    try{iframes[i].contentWindow.postMessage(JSON.stringify({method:'pause'}),'*');}catch(e){}
+                                }
+                            }
+                        })();""", null
+                    )
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                    webView.evaluateJavascript("var v=document.querySelector('video');if(v)v.currentTime+=10;", null)
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                    webView.evaluateJavascript("var v=document.querySelector('video');if(v)v.currentTime-=10;", null)
+                    return true
+                }
+                KeyEvent.KEYCODE_MENU -> {
+                    toggleFullscreen()
+                    return true
+                }
+                KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
+                    return false
+                }
+            }
+        }
+
+        return super.dispatchKeyEvent(event)
     }
 
     private fun toggleFullscreen() {
@@ -348,13 +466,6 @@ class MainActivity : AppCompatActivity() {
                 var style = document.createElement('style');
                 style.id = '__manglar_adblock';
                 style.textContent = '$selectorStr { display: none !important; } ' +
-                    '[class*="bell"], [class*="campana"], [class*="notif"], [class*="push-subscribe"], ' +
-                    '[class*="subscribe"], [class*="subscrib"], [class*="click-overlay"], ' +
-                    '[class*="click-blocker"], [class*="tap-overlay"], [class*="tap-block"], ' +
-                    '[class*="anti-adblock"], [class*="overlay-player"], [class*="player-overlay"], ' +
-                    '[class*="vast"], [class*="preroll"], [class*="float-banner"], ' +
-                    '[class*="sticky-banner"], [class*="notification-overlay"] ' +
-                    '{ display: none !important; } ' +
                     '.video-container *, .player-container *, #player * { cursor: default !important; }';
                 document.head.appendChild(style);
 
@@ -407,19 +518,9 @@ class MainActivity : AppCompatActivity() {
                         for (var i = overlaysSobreVideo.length - 1; i >= 0; i--) {
                             var el = overlaysSobreVideo[i];
                             var tieneVideo = el.querySelector('video');
-                            var tieneCampana = el.querySelector('[class*="bell"], [class*="campana"], svg, [class*="notif"]');
-                            if (!tieneVideo && (tieneCampana || el.className.toString().match(/overlay|modal|popup|notif|bell|subscribe/i))) {
+                            if (!tieneVideo && el.className.toString().match(/overlay|modal|popup|bell|subscribe/i)) {
                                 el.style.display = 'none';
                                 el.remove();
-                            }
-                        }
-
-                        var campanitas = document.querySelectorAll('[class*="bell"], [class*="campana"], [class*="notif"], [class*="push"], [class*="subscribe"]');
-                        for (var i = campanitas.length - 1; i >= 0; i--) {
-                            var parent = campanitas[i].closest('div, section, aside');
-                            if (parent && parent.querySelector('video') === null) {
-                                parent.style.display = 'none';
-                                parent.remove();
                             }
                         }
 
@@ -449,18 +550,6 @@ class MainActivity : AppCompatActivity() {
                 function bloquearPopunders() {
                     try {
                         window.open = function() { return null; };
-                        var origTarget = window.HTMLAnchorElement.prototype.__lookupSetter__('target');
-                        if (origTarget) {
-                            Object.defineProperty(window.HTMLAnchorElement.prototype, 'target', {
-                                set: function(v) {
-                                    if (v === '_blank') v = '_self';
-                                    origTarget.call(this, v);
-                                },
-                                get: function() {
-                                    return origTarget ? origTarget.call(this) : '_self';
-                                }
-                            });
-                        }
 
                         var origAssign = window.location.assign;
                         window.location.assign = function(url) {
@@ -532,8 +621,7 @@ class MainActivity : AppCompatActivity() {
     private fun inyectarNavegacionTV() {
         val js = """
             (function() {
-                if (window.__tvNavInstalado) return;
-                window.__tvNavInstalado = true;
+                if (window.__tvNav) return;
 
                 var SPEED = 18;
                 var cx = window.innerWidth / 2;
@@ -541,8 +629,34 @@ class MainActivity : AppCompatActivity() {
                 var timers = {};
 
                 var cursor = document.createElement('div');
+                cursor.id = '__tv_cursor';
                 cursor.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;width:28px;height:28px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(0,229,255,0.7);background:rgba(0,229,255,0.15);left:50%;top:50%;';
                 document.documentElement.appendChild(cursor);
+
+                document.addEventListener('keydown', function(e) {
+                    var k = e.keyCode;
+                    if (k >= 37 && k <= 40) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        var d = k===38?'up':k===40?'down':k===37?'left':'right';
+                        move(d);
+                    }
+                    if (k === 13) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        doClick();
+                    }
+                }, true);
+
+                document.addEventListener('keyup', function(e) {
+                    var k = e.keyCode;
+                    if (k >= 37 && k <= 40) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        var d = k===38?'up':k===40?'down':k===37?'left':'right';
+                        stop(d);
+                    }
+                }, true);
 
                 function draw() {
                     cursor.style.left = cx + 'px';
@@ -568,7 +682,7 @@ class MainActivity : AppCompatActivity() {
                     if (timers[dir]) { clearInterval(timers[dir]); timers[dir] = null; }
                 }
 
-                function click() {
+                function doClick() {
                     cursor.style.display = 'none';
                     var el = document.elementFromPoint(cx, cy);
                     cursor.style.display = '';
@@ -604,7 +718,7 @@ class MainActivity : AppCompatActivity() {
                 window.__tvNav = {
                     move: move,
                     stop: stop,
-                    click: click
+                    click: doClick
                 };
 
                 draw();
@@ -733,16 +847,6 @@ class MainActivity : AppCompatActivity() {
                             if (btn) btn.click();
                             else modals[i].style.display = 'none';
                         }
-
-                        var overlays = document.querySelectorAll('[class*="overlay"], [class*="backdrop"]');
-                        for (var i = overlays.length - 1; i >= 0; i--) {
-                            var s = window.getComputedStyle(overlays[i]);
-                            if (s.position === 'fixed' || s.position === 'absolute') {
-                                if (overlays[i].querySelector('video') === null) {
-                                    overlays[i].style.display = 'none';
-                                }
-                            }
-                        }
                     } catch(e) {}
                 }
 
@@ -764,115 +868,6 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
-    }
-
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        when (keyCode) {
-            KeyEvent.KEYCODE_BACK -> {
-                if (customView != null) {
-                    webView.webChromeClient?.onHideCustomView()
-                    return true
-                }
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                    return true
-                }
-            }
-            KeyEvent.KEYCODE_DPAD_UP -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.move('up')", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.move('down')", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.move('left')", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.move('right')", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
-                return true
-            }
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                webView.evaluateJavascript(
-                    """
-                    (function() {
-                        var v = document.querySelector('video');
-                        if (v) { if (v.paused) v.play(); else v.pause(); return; }
-                        var iframes = document.querySelectorAll('iframe');
-                        for (var i = 0; i < iframes.length; i++) {
-                            var src = (iframes[i].src || '').toLowerCase();
-                            if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1 ||
-                                src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 ||
-                                src.indexOf('voe') !== -1) {
-                                try { iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}), '*'); } catch(e) {}
-                            }
-                        }
-                    })();
-                    """.trimIndent(), null
-                )
-                return true
-            }
-            KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                webView.evaluateJavascript(
-                    "var v=document.querySelector('video');if(v)v.play();", null
-                )
-                return true
-            }
-            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                webView.evaluateJavascript(
-                    "var v=document.querySelector('video');if(v)v.pause();", null
-                )
-                return true
-            }
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                webView.evaluateJavascript(
-                    "var v=document.querySelector('video');if(v)v.currentTime+=10;", null
-                )
-                return true
-            }
-            KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                webView.evaluateJavascript(
-                    "var v=document.querySelector('video');if(v)v.currentTime-=10;", null
-                )
-                return true
-            }
-            KeyEvent.KEYCODE_MENU -> {
-                toggleFullscreen()
-                return true
-            }
-            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
-                return false
-            }
-        }
-        return super.onKeyDown(keyCode, event)
-    }
-
-    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('up')", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('down')", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('left')", null)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('right')", null)
-                return true
-            }
-        }
-        return super.onKeyUp(keyCode, event)
     }
 
     override fun onDestroy() {
