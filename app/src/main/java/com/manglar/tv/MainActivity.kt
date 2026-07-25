@@ -15,6 +15,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayInputStream
 
@@ -26,6 +27,12 @@ class MainActivity : AppCompatActivity() {
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
+
+    // Historial propio de URLs: muchos sitios tipo SPA navegan con history.replaceState()
+    // en vez de pushState(), lo que significa que webView.canGoBack() nunca detecta esas
+    // navegaciones. Lo llevamos nosotros mismos como respaldo.
+    private val pilaHistorial = mutableListOf<String>()
+    private var ultimoBackPressTime = 0L
 
     private val targetUrl = "https://manglarpelis.manglar.fun/"
 
@@ -164,6 +171,23 @@ class MainActivity : AppCompatActivity() {
         up.recycle()
     }
 
+    // Puente JS -> Android: nos avisa cada vez que la URL cambia dentro del sitio,
+    // incluso cuando el sitio usa history.replaceState() (que NO genera una entrada
+    // nueva en el historial nativo del WebView, y por eso canGoBack() no lo detecta).
+    inner class HistorialBridge {
+        @JavascriptInterface
+        fun reportarUrl(url: String) {
+            runOnUiThread { registrarUrlEnHistorial(url) }
+        }
+    }
+
+    private fun registrarUrlEnHistorial(url: String) {
+        if (pilaHistorial.isEmpty() || pilaHistorial.last() != url) {
+            pilaHistorial.add(url)
+            if (pilaHistorial.size > 50) pilaHistorial.removeAt(0)
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -231,6 +255,24 @@ class MainActivity : AppCompatActivity() {
                     }
                     if (webView.canGoBack()) {
                         webView.goBack()
+                        return true
+                    }
+                    // Respaldo para sitios tipo SPA (replaceState): usamos nuestro
+                    // propio historial de URLs para volver a la página anterior.
+                    if (pilaHistorial.size > 1) {
+                        pilaHistorial.removeAt(pilaHistorial.size - 1) // quita la URL actual
+                        val anterior = pilaHistorial.last()
+                        webView.loadUrl(anterior)
+                        return true
+                    }
+                    // Ya estamos en la raíz de la navegación: exige doble back para
+                    // salir de verdad, así se evitan salidas accidentales de la app.
+                    val ahora = System.currentTimeMillis()
+                    if (ahora - ultimoBackPressTime < 2000) {
+                        // segundo back dentro de 2s: deja pasar el evento (sale de la app)
+                    } else {
+                        ultimoBackPressTime = ahora
+                        Toast.makeText(this, "Presiona atrás de nuevo para salir", Toast.LENGTH_SHORT).show()
                         return true
                     }
                 }
@@ -332,6 +374,8 @@ class MainActivity : AppCompatActivity() {
 
         // Puente para simular toques reales cuando el play esté dentro de un iframe externo.
         webView.addJavascriptInterface(PlayerBridge(), "AndroidBridge")
+        // Puente para llevar nuestro propio historial de navegación (ver HistorialBridge).
+        webView.addJavascriptInterface(HistorialBridge(), "HistorialBridge")
 
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
@@ -347,6 +391,7 @@ class MainActivity : AppCompatActivity() {
                 inyectarBloqueoAds()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
+                inyectarSeguimientoDeHistorial()
                 webView.requestFocus()
             }
 
@@ -653,6 +698,42 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
 
+        webView.evaluateJavascript(js, null)
+    }
+
+    // Hookea history.pushState / replaceState / popstate para reportar cada cambio de
+    // URL a Android. Necesario porque muchos sitios de una sola página navegan con
+    // replaceState() y eso NO queda registrado en el historial nativo del WebView.
+    private fun inyectarSeguimientoDeHistorial() {
+        val js = """
+            (function() {
+                if (window.__historialInstalado) return;
+                window.__historialInstalado = true;
+
+                function reportar() {
+                    if (window.HistorialBridge) {
+                        window.HistorialBridge.reportarUrl(location.href);
+                    }
+                }
+
+                var origPush = history.pushState;
+                history.pushState = function() {
+                    origPush.apply(history, arguments);
+                    reportar();
+                };
+
+                var origReplace = history.replaceState;
+                history.replaceState = function() {
+                    origReplace.apply(history, arguments);
+                    reportar();
+                };
+
+                window.addEventListener('popstate', reportar);
+                window.addEventListener('hashchange', reportar);
+
+                reportar();
+            })();
+        """.trimIndent()
         webView.evaluateJavascript(js, null)
     }
 
