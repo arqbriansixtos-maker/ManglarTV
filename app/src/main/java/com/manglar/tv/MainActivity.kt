@@ -176,12 +176,20 @@ class MainActivity : AppCompatActivity() {
                         try {
                             val clean = result.replace("\"", "")
                             val obj = org.json.JSONObject(clean)
-                            val cssX = obj.getDouble("x").toInt()
-                            val cssY = obj.getDouble("y").toInt()
+                            val cssX = obj.getDouble("x").toFloat()
+                            val cssY = obj.getDouble("y").toFloat()
                             val density = resources.displayMetrics.density
-                            val screenX = (cssX * density).toInt()
-                            val screenY = (cssY * density).toInt()
-                            Runtime.getRuntime().exec(arrayOf("input", "tap", screenX.toString(), screenY.toString()))
+                            val vx = cssX * density
+                            val vy = cssY * density
+                            val t = SystemClock.uptimeMillis()
+                            val down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, vx, vy, 0)
+                            webView.dispatchTouchEvent(down)
+                            down.recycle()
+                            webView.postDelayed({
+                                val up = MotionEvent.obtain(t, t + 80, MotionEvent.ACTION_UP, vx, vy, 0)
+                                webView.dispatchTouchEvent(up)
+                                up.recycle()
+                            }, 80)
                         } catch (e: Exception) {}
                     }
                 }
