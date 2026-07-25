@@ -535,105 +535,79 @@ class MainActivity : AppCompatActivity() {
                 if (window.__tvNavInstalado) return;
                 window.__tvNavInstalado = true;
 
-                var SPEED = 25;
-                var FAST_SPEED = 60;
-                var cursorX = window.innerWidth / 2;
-                var cursorY = window.innerHeight / 2;
-                var moving = {};
+                var SPEED = 18;
+                var cx = window.innerWidth / 2;
+                var cy = window.innerHeight / 2;
+                var timers = {};
 
                 var cursor = document.createElement('div');
-                cursor.id = '__tv_cursor';
-                cursor.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;width:28px;height:28px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(0,229,255,0.7);background:rgba(0,229,255,0.15);';
-                document.body.appendChild(cursor);
+                cursor.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;width:28px;height:28px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(0,229,255,0.7);background:rgba(0,229,255,0.15);left:50%;top:50%;';
+                document.documentElement.appendChild(cursor);
 
-                var trail = document.createElement('div');
-                trail.style.cssText = 'position:fixed;z-index:2147483646;pointer-events:none;width:8px;height:8px;border-radius:50%;background:#00e5ff;transform:translate(-50%,-50%);opacity:0.4;transition:left 0.15s ease-out,top 0.15s ease-out;';
-                document.body.appendChild(trail);
-
-                function update() {
-                    cursor.style.left = cursorX + 'px';
-                    cursor.style.top = cursorY + 'px';
-                    trail.style.left = cursorX + 'px';
-                    trail.style.top = cursorY + 'px';
-
-                    var el = document.elementFromPoint(cursorX, cursorY);
-                    var clicky = findClickable(el);
-                    if (clicky) {
-                        cursor.style.borderColor = '#00ff88';
-                        cursor.style.boxShadow = '0 0 14px rgba(0,255,136,0.8)';
-                    } else {
-                        cursor.style.borderColor = '#00e5ff';
-                        cursor.style.boxShadow = '0 0 10px rgba(0,229,255,0.7)';
-                    }
+                function draw() {
+                    cursor.style.left = cx + 'px';
+                    cursor.style.top = cy + 'px';
                 }
 
-                function findClickable(el) {
-                    if (!el) return null;
+                function move(dir) {
+                    if (timers[dir]) return;
+                    timers[dir] = setInterval(function() {
+                        if (dir === 'up') cy -= SPEED;
+                        if (dir === 'down') cy += SPEED;
+                        if (dir === 'left') cx -= SPEED;
+                        if (dir === 'right') cx += SPEED;
+                        if (cx < 10) cx = 10;
+                        if (cy < 10) cy = 10;
+                        if (cx > window.innerWidth - 10) cx = window.innerWidth - 10;
+                        if (cy > window.innerHeight - 10) cy = window.innerHeight - 10;
+                        draw();
+                    }, 16);
+                }
+
+                function stop(dir) {
+                    if (timers[dir]) { clearInterval(timers[dir]); timers[dir] = null; }
+                }
+
+                function click() {
+                    cursor.style.display = 'none';
+                    var el = document.elementFromPoint(cx, cy);
+                    cursor.style.display = '';
+                    if (!el) return;
+
                     var c = el;
-                    for (var i = 0; i < 8; i++) {
+                    var target = el;
+                    for (var i = 0; i < 10; i++) {
                         if (!c || c === document.body || c === document.documentElement) break;
-                        var tag = c.tagName;
-                        var role = c.getAttribute('role');
-                        var cs = window.getComputedStyle(c).cursor;
-                        if (tag === 'A' || tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' ||
-                            role === 'button' || role === 'link' || role === 'tab' || role === 'menuitem' ||
-                            c.onclick || cs === 'pointer') {
-                            return c;
+                        if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
+                            c.tagName === 'SELECT' || c.tagName === 'TEXTAREA' ||
+                            c.getAttribute('role') === 'button' || c.getAttribute('role') === 'link' ||
+                            c.getAttribute('role') === 'tab' || c.getAttribute('role') === 'menuitem' ||
+                            c.onclick || window.getComputedStyle(c).cursor === 'pointer') {
+                            target = c;
+                            break;
                         }
                         c = c.parentElement;
                     }
-                    return null;
-                }
 
-                function doClick() {
-                    var el = document.elementFromPoint(cursorX, cursorY);
-                    if (!el) return;
-                    var target = findClickable(el) || el;
-
-                    var opts = {bubbles: true, clientX: cursorX, clientY: cursorY, cancelable: true};
+                    var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
                     target.dispatchEvent(new MouseEvent('mousedown', opts));
                     target.dispatchEvent(new MouseEvent('mouseup', opts));
                     target.dispatchEvent(new MouseEvent('click', opts));
 
-                    var ripple = document.createElement('div');
-                    ripple.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;width:60px;height:60px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);left:' + cursorX + 'px;top:' + cursorY + 'px;opacity:1;transition:opacity 0.4s,transform 0.4s;';
-                    document.body.appendChild(ripple);
-                    setTimeout(function() { ripple.style.opacity = '0'; ripple.style.transform = 'translate(-50%,-50%) scale(1.5)'; }, 10);
-                    setTimeout(function() { ripple.remove(); }, 400);
-                }
-
-                function startMove(dir) {
-                    if (moving[dir]) return;
-                    moving[dir] = true;
-                    function step() {
-                        if (!moving[dir]) return;
-                        var s = moving.shift_key ? FAST_SPEED : SPEED;
-                        switch(dir) {
-                            case 'up': cursorY -= s; break;
-                            case 'down': cursorY += s; break;
-                            case 'left': cursorX -= s; break;
-                            case 'right': cursorX += s; break;
-                        }
-                        cursorX = Math.max(2, Math.min(window.innerWidth - 2, cursorX));
-                        cursorY = Math.max(2, Math.min(window.innerHeight - 2, cursorY));
-                        update();
-                        requestAnimationFrame(step);
-                    }
-                    step();
-                }
-
-                function stopMove(dir) {
-                    moving[dir] = false;
+                    var r = document.createElement('div');
+                    r.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none;width:50px;height:50px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);left:' + cx + 'px;top:' + cy + 'px;opacity:1;transition:opacity 0.3s;';
+                    document.documentElement.appendChild(r);
+                    setTimeout(function() { r.style.opacity = '0'; }, 10);
+                    setTimeout(function() { r.remove(); }, 350);
                 }
 
                 window.__tvNav = {
-                    move: function(dir) { startMove(dir); },
-                    stop: function(dir) { stopMove(dir); },
-                    click: doClick,
-                    shift: function(v) { moving.shift_key = v; }
+                    move: move,
+                    stop: stop,
+                    click: click
                 };
 
-                update();
+                draw();
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
