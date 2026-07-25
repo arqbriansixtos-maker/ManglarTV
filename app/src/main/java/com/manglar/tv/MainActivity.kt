@@ -163,7 +163,7 @@ class MainActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
                     else -> return false
                 }
-                webView.evaluateJavascript("window.__tvNav.move('$dir')", null)
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.move('$dir')", null)
                 return true
             }
             if (event.action == KeyEvent.ACTION_UP) {
@@ -174,38 +174,21 @@ class MainActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
                     else -> return false
                 }
-                webView.evaluateJavascript("window.__tvNav.stop('$dir')", null)
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('$dir')", null)
                 return true
             }
         }
 
+        // FIX: antes este bloque solo hacía .focus() sobre el elemento bajo el cursor
+        // y nunca llamaba a window.__tvNav.click() (la función que sí dispara el click real).
+        // Por eso el cursor se movía pero OK/Enter no hacía nada.
         if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
             if (event.action == KeyEvent.ACTION_DOWN) {
-                webView.evaluateJavascript(
-                    """(function(){
-                        var cx = window.__tvNav.getX();
-                        var cy = window.__tvNav.getY();
-                        var el = document.elementFromPoint(cx, cy);
-                        if (!el) return;
-                        var c = el;
-                        for (var i = 0; i < 15; i++) {
-                            if (!c || c === document.body || c === document.documentElement) break;
-                            if (c.tagName === 'IFRAME') { c.focus(); return; }
-                            if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
-                                c.tagName === 'SELECT' || c.tagName === 'TEXTAREA' ||
-                                c.getAttribute('role') === 'button' || c.getAttribute('role') === 'link' ||
-                                c.getAttribute('role') === 'tab' || c.getAttribute('role') === 'menuitem' ||
-                                c.getAttribute('tabindex') !== null || c.tabIndex > 0 ||
-                                window.getComputedStyle(c).cursor === 'pointer') {
-                                c.focus();
-                                return;
-                            }
-                            c = c.parentElement;
-                        }
-                        el.focus();
-                    })();""", null
-                )
-                return false
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
+                return true
+            }
+            if (event.action == KeyEvent.ACTION_UP) {
+                return true
             }
         }
 
