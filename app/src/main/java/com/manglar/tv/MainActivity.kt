@@ -2,9 +2,7 @@ package com.manglar.tv
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -155,9 +153,7 @@ class MainActivity : AppCompatActivity() {
         if (code == KeyEvent.KEYCODE_DPAD_UP ||
             code == KeyEvent.KEYCODE_DPAD_DOWN ||
             code == KeyEvent.KEYCODE_DPAD_LEFT ||
-            code == KeyEvent.KEYCODE_DPAD_RIGHT ||
-            code == KeyEvent.KEYCODE_DPAD_CENTER ||
-            code == KeyEvent.KEYCODE_ENTER
+            code == KeyEvent.KEYCODE_DPAD_RIGHT
         ) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 val dir = when (code) {
@@ -165,34 +161,9 @@ class MainActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_DOWN -> "down"
                     KeyEvent.KEYCODE_DPAD_LEFT -> "left"
                     KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
-                    else -> null
+                    else -> return false
                 }
-                if (dir != null) {
-                    webView.evaluateJavascript("window.__tvNav.move('$dir')", null)
-                } else {
-                    webView.evaluateJavascript(
-                        "JSON.stringify({x:window.__tvNav.getX(),y:window.__tvNav.getY()})"
-                    ) { result ->
-                        try {
-                            val clean = result.replace("\"", "")
-                            val obj = org.json.JSONObject(clean)
-                            val cssX = obj.getDouble("x").toFloat()
-                            val cssY = obj.getDouble("y").toFloat()
-                            val density = resources.displayMetrics.density
-                            val vx = cssX * density
-                            val vy = cssY * density
-                            val t = SystemClock.uptimeMillis()
-                            val down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, vx, vy, 0)
-                            webView.dispatchTouchEvent(down)
-                            down.recycle()
-                            webView.postDelayed({
-                                val up = MotionEvent.obtain(t, t + 80, MotionEvent.ACTION_UP, vx, vy, 0)
-                                webView.dispatchTouchEvent(up)
-                                up.recycle()
-                            }, 80)
-                        } catch (e: Exception) {}
-                    }
-                }
+                webView.evaluateJavascript("window.__tvNav.move('$dir')", null)
                 return true
             }
             if (event.action == KeyEvent.ACTION_UP) {
@@ -201,12 +172,40 @@ class MainActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_DOWN -> "down"
                     KeyEvent.KEYCODE_DPAD_LEFT -> "left"
                     KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
-                    else -> null
+                    else -> return false
                 }
-                if (dir != null) {
-                    webView.evaluateJavascript("window.__tvNav.stop('$dir')", null)
-                }
+                webView.evaluateJavascript("window.__tvNav.stop('$dir')", null)
                 return true
+            }
+        }
+
+        if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                webView.evaluateJavascript(
+                    """(function(){
+                        var cx = window.__tvNav.getX();
+                        var cy = window.__tvNav.getY();
+                        var el = document.elementFromPoint(cx, cy);
+                        if (!el) return;
+                        var c = el;
+                        for (var i = 0; i < 15; i++) {
+                            if (!c || c === document.body || c === document.documentElement) break;
+                            if (c.tagName === 'IFRAME') { c.focus(); return; }
+                            if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
+                                c.tagName === 'SELECT' || c.tagName === 'TEXTAREA' ||
+                                c.getAttribute('role') === 'button' || c.getAttribute('role') === 'link' ||
+                                c.getAttribute('role') === 'tab' || c.getAttribute('role') === 'menuitem' ||
+                                c.getAttribute('tabindex') !== null || c.tabIndex > 0 ||
+                                window.getComputedStyle(c).cursor === 'pointer') {
+                                c.focus();
+                                return;
+                            }
+                            c = c.parentElement;
+                        }
+                        el.focus();
+                    })();""", null
+                )
+                return false
             }
         }
 
