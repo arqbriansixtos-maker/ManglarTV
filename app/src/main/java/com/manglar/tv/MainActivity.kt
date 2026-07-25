@@ -2,7 +2,9 @@ package com.manglar.tv
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -168,7 +170,30 @@ class MainActivity : AppCompatActivity() {
                 if (dir != null) {
                     webView.evaluateJavascript("window.__tvNav.move('$dir')", null)
                 } else {
-                    webView.evaluateJavascript("window.__tvNav.click()", null)
+                    val density = resources.displayMetrics.density
+                    val location = IntArray(2)
+                    webView.getLocationOnScreen(location)
+                    webView.evaluateJavascript(
+                        "JSON.stringify({x:window.__tvNav.getX(),y:window.__tvNav.getY()})"
+                    ) { result ->
+                        try {
+                            val clean = result.replace("\"", "")
+                            val obj = org.json.JSONObject(clean)
+                            val cssX = obj.getDouble("x").toFloat()
+                            val cssY = obj.getDouble("y").toFloat()
+                            val screenX = location[0] + cssX * density
+                            val screenY = location[1] + cssY * density
+                            val downTime = SystemClock.uptimeMillis()
+                            var ev = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, screenX, screenY, 0)
+                            webView.dispatchTouchEvent(ev)
+                            ev.recycle()
+                            ev = MotionEvent.obtain(downTime, downTime + 50, MotionEvent.ACTION_UP, screenX, screenY, 0)
+                            webView.dispatchTouchEvent(ev)
+                            ev.recycle()
+                        } catch (e: Exception) {
+                            webView.evaluateJavascript("window.__tvNav.click()", null)
+                        }
+                    }
                 }
                 return true
             }
@@ -732,7 +757,9 @@ class MainActivity : AppCompatActivity() {
                 window.__tvNav = {
                     move: move,
                     stop: stop,
-                    click: doClick
+                    click: doClick,
+                    getX: function() { return cx; },
+                    getY: function() { return cy; }
                 };
 
                 draw();
