@@ -2,8 +2,11 @@ package com.manglar.tv
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -133,6 +136,33 @@ class MainActivity : AppCompatActivity() {
         "[class*=\"anti-adblock\"]", "[class*=\"adblock-detect\"]",
         "[id*=\"preroll\"]", "[id*=\"midroll\"]", "[id*=\"overlay-ad\"]"
     )
+
+    // Puente JS -> Android: cuando el botón de play está DENTRO de un iframe de otro
+    // dominio (el reproductor externo), JS de la página principal no puede hacer click
+    // "de adentro" por la política de mismo origen. Este puente recibe coordenadas y
+    // simula un toque físico real en la pantalla, que sí llega al contenido del iframe.
+    inner class PlayerBridge {
+        @JavascriptInterface
+        fun tapAt(x: Float, y: Float) {
+            runOnUiThread { simularToqueReal(x, y) }
+        }
+    }
+
+    private fun simularToqueReal(cssX: Float, cssY: Float) {
+        // Las coordenadas llegan en píxeles CSS del viewport; se convierten a píxeles
+        // reales de pantalla con la densidad del dispositivo.
+        val densidad = resources.displayMetrics.density
+        val x = cssX * densidad
+        val y = cssY * densidad
+
+        val downTime = SystemClock.uptimeMillis()
+        val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+        val up = MotionEvent.obtain(downTime, downTime + 80, MotionEvent.ACTION_UP, x, y, 0)
+        webView.dispatchTouchEvent(down)
+        webView.dispatchTouchEvent(up)
+        down.recycle()
+        up.recycle()
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -299,6 +329,9 @@ class MainActivity : AppCompatActivity() {
 
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.setSupportMultipleWindows(false)
+
+        // Puente para simular toques reales cuando el play esté dentro de un iframe externo.
+        webView.addJavascriptInterface(PlayerBridge(), "AndroidBridge")
 
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
@@ -682,6 +715,16 @@ class MainActivity : AppCompatActivity() {
                     cursor.style.display = '';
                     if (!el) return;
 
+                    // Si lo que hay bajo el cursor es directamente un IFRAME (reproductor
+                    // externo), el click de JS no puede llegar "adentro" por seguridad del
+                    // navegador. En ese caso usamos un toque real simulado por Android.
+                    if (el.tagName === 'IFRAME') {
+                        if (window.AndroidBridge) {
+                            window.AndroidBridge.tapAt(cx, cy);
+                        }
+                        return;
+                    }
+
                     var target = null;
                     var c = el;
                     for (var i = 0; i < 10; i++) {
@@ -702,6 +745,12 @@ class MainActivity : AppCompatActivity() {
                         target.dispatchEvent(new MouseEvent('mousedown', opts));
                         target.dispatchEvent(new MouseEvent('mouseup', opts));
                         target.dispatchEvent(new MouseEvent('click', opts));
+                    } else if (window.AndroidBridge) {
+                        // Sin ancestro clicable identificable: probablemente es contenido
+                        // dibujado dentro de un iframe cross-origin que no detectamos como
+                        // tal directamente (a veces el iframe está debajo de una capa
+                        // transparente). Toque real como último recurso.
+                        window.AndroidBridge.tapAt(cx, cy);
                     }
 
                     var videos = document.querySelectorAll('video');
