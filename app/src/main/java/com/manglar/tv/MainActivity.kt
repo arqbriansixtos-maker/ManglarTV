@@ -623,39 +623,34 @@ class MainActivity : AppCompatActivity() {
             (function() {
                 if (window.__tvNav) return;
 
-                var SPEED = 18;
+                var SPEED = 14;
                 var cx = window.innerWidth / 2;
                 var cy = window.innerHeight / 2;
                 var timers = {};
+                var active = false;
 
                 var cursor = document.createElement('div');
                 cursor.id = '__tv_cursor';
-                cursor.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;width:28px;height:28px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(0,229,255,0.7);background:rgba(0,229,255,0.15);left:50%;top:50%;';
+                cursor.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;width:28px;height:28px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(0,229,255,0.7);background:rgba(0,229,255,0.15);left:50%;top:50%;display:none;';
                 document.documentElement.appendChild(cursor);
 
-                document.addEventListener('keydown', function(e) {
-                    var k = e.keyCode;
-                    if (k >= 37 && k <= 40) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        var d = k===38?'up':k===40?'down':k===37?'left':'right';
-                        move(d);
+                function showCursor() {
+                    if (!active) {
+                        active = true;
+                        cursor.style.display = 'block';
                     }
-                    if (k === 13) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        doClick();
-                    }
-                }, true);
+                }
 
-                document.addEventListener('keyup', function(e) {
+                window.addEventListener('keydown', function(e) {
                     var k = e.keyCode;
-                    if (k >= 37 && k <= 40) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        var d = k===38?'up':k===40?'down':k===37?'left':'right';
-                        stop(d);
+                    if (k >= 37 && k <= 40 || k === 13) {
+                        showCursor();
                     }
+                }, false);
+
+                window.addEventListener('scroll', function() {
+                    if (!active) return;
+                    window.scrollTo(0, window.scrollY);
                 }, true);
 
                 function draw() {
@@ -664,6 +659,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 function move(dir) {
+                    showCursor();
                     if (timers[dir]) return;
                     timers[dir] = setInterval(function() {
                         if (dir === 'up') cy -= SPEED;
@@ -675,7 +671,7 @@ class MainActivity : AppCompatActivity() {
                         if (cx > window.innerWidth - 10) cx = window.innerWidth - 10;
                         if (cy > window.innerHeight - 10) cy = window.innerHeight - 10;
                         draw();
-                    }, 16);
+                    }, 20);
                 }
 
                 function stop(dir) {
@@ -683,9 +679,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 function doClick() {
+                    if (!active) return;
                     cursor.style.display = 'none';
                     var el = document.elementFromPoint(cx, cy);
-                    cursor.style.display = '';
+                    cursor.style.display = 'block';
                     if (!el) return;
 
                     var c = el;
@@ -809,19 +806,28 @@ class MainActivity : AppCompatActivity() {
 
                             v.muted = false;
                             v.autoplay = true;
+                            v.removeAttribute('preload');
+                            v.preload = 'auto';
 
                             v.addEventListener('loadeddata', function() {
                                 var self = this;
                                 setTimeout(function() {
                                     if (self.paused) self.play().catch(function(){});
-                                }, 300);
+                                }, 200);
                             });
 
                             v.addEventListener('canplay', function() {
                                 var self = this;
                                 setTimeout(function() {
                                     if (self.paused) self.play().catch(function(){});
-                                }, 200);
+                                }, 150);
+                            });
+
+                            v.addEventListener('canplaythrough', function() {
+                                var self = this;
+                                setTimeout(function() {
+                                    if (self.paused) self.play().catch(function(){});
+                                }, 100);
                             });
 
                             if (v.readyState >= 1) {
@@ -829,11 +835,41 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
-                        var playBtns = document.querySelectorAll('.vjs-big-play-button, .jw-icon-display, [aria-label*="Play"], [title*="Play"], [title*="play"]');
+                        var playBtns = document.querySelectorAll(
+                            '.vjs-big-play-button, .jw-icon-display, [aria-label*="Play"], [aria-label*="play"], ' +
+                            '[title*="Play"], [title*="play"], [title*="Reproducir"], [aria-label*="Reproducir"], ' +
+                            '.plyr__control, .plyr-play, .play-btn, .player-play, ' +
+                            '[class*="play-button"], [class*="play-btn"], [class*="playBtn"], ' +
+                            'button[aria-label*="Play"], button[title*="Play"]'
+                        );
                         for (var i = 0; i < playBtns.length; i++) {
                             if (!playBtns[i]._autoClicked) {
                                 playBtns[i]._autoClicked = true;
                                 playBtns[i].click();
+                            }
+                        }
+
+                        var bigPlayContainers = document.querySelectorAll(
+                            '.vjs-poster, .jw-display-icon-container, [class*="big-play"], ' +
+                            '[class*="play-overlay"], [class*="play-poster"]'
+                        );
+                        for (var i = 0; i < bigPlayContainers.length; i++) {
+                            if (!bigPlayContainers[i]._autoClicked) {
+                                bigPlayContainers[i]._autoClicked = true;
+                                bigPlayContainers[i].click();
+                            }
+                        }
+
+                        var iframes = document.querySelectorAll('iframe');
+                        for (var i = 0; i < iframes.length; i++) {
+                            var ifr = iframes[i];
+                            var src = (ifr.src || '').toLowerCase();
+                            if (src.indexOf('vimeo') !== -1) {
+                                ifr.contentWindow.postMessage(JSON.stringify({method:'play'}), '*');
+                            }
+                            if (src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 || src.indexOf('voe') !== -1) {
+                                ifr.contentWindow.postMessage('{"event":"play"}', '*');
+                                ifr.contentWindow.postMessage(JSON.stringify({type:'play'}), '*');
                             }
                         }
                     } catch(e) {}
@@ -856,15 +892,19 @@ class MainActivity : AppCompatActivity() {
 
                 var obs = new MutationObserver(function() {
                     setTimeout(autoSeleccionarServidor, 200);
-                    setTimeout(autoReproducir, 400);
+                    setTimeout(autoReproducir, 300);
+                    setTimeout(autoReproducir, 800);
+                    setTimeout(autoReproducir, 1500);
                     setTimeout(cerrarPopups, 100);
                 });
                 obs.observe(document.body || document.documentElement, {childList: true, subtree: true});
 
                 setTimeout(autoSeleccionarServidor, 500);
-                setTimeout(autoReproducir, 800);
+                setTimeout(autoReproducir, 600);
+                setTimeout(autoReproducir, 1000);
                 setTimeout(autoSeleccionarServidor, 2000);
                 setTimeout(autoReproducir, 2500);
+                setTimeout(autoReproducir, 4000);
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
