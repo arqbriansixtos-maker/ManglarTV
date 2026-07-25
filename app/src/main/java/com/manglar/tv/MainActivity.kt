@@ -123,7 +123,18 @@ class MainActivity : AppCompatActivity() {
         ".adElement", ".adv-container", ".adv-banner",
         "ins.adsbygoogle", "amp-ad",
         "[id*=\"google_ads\"]",
-        "[class*=\"ad-true\"]", "[class*=\"ad-false\"]"
+        "[class*=\"ad-true\"]", "[class*=\"ad-false\"]",
+        "[class*=\"bell\"]", "[class*=\"campana\"]", "[class*=\"notif\"]",
+        "[class*=\"notification-overlay\"]", "[class*=\"push-notification\"]",
+        "[class*=\"subscribe\"]", "[class*=\"subscrib\"]",
+        ".jw-icon-notice", ".jw-overlay", ".jw-click-handler",
+        "[class*=\"overlay-player\"]", "[class*=\"player-overlay\"]",
+        "[class*=\"vast\"]", "[class*=\"preroll\"]",
+        "[class*=\"float-banner\"]", "[class*=\"sticky-banner\"]",
+        "[class*=\"click-overlay\"]", "[class*=\"click-blocker\"]",
+        "[class*=\"tap-overlay\"]", "[class*=\"tap-block\"]",
+        "[class*=\"anti-adblock\"]", "[class*=\"adblock-detect\"]",
+        "[id*=\"preroll\"]", "[id*=\"midroll\"]", "[id*=\"overlay-ad\"]"
     )
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -336,7 +347,15 @@ class MainActivity : AppCompatActivity() {
 
                 var style = document.createElement('style');
                 style.id = '__manglar_adblock';
-                style.textContent = '$selectorStr { display: none !important; }';
+                style.textContent = '$selectorStr { display: none !important; } ' +
+                    '[class*="bell"], [class*="campana"], [class*="notif"], [class*="push-subscribe"], ' +
+                    '[class*="subscribe"], [class*="subscrib"], [class*="click-overlay"], ' +
+                    '[class*="click-blocker"], [class*="tap-overlay"], [class*="tap-block"], ' +
+                    '[class*="anti-adblock"], [class*="overlay-player"], [class*="player-overlay"], ' +
+                    '[class*="vast"], [class*="preroll"], [class*="float-banner"], ' +
+                    '[class*="sticky-banner"], [class*="notification-overlay"] ' +
+                    '{ display: none !important; } ' +
+                    '.video-container *, .player-container *, #player * { cursor: default !important; }';
                 document.head.appendChild(style);
 
                 function isAdUrl(src) {
@@ -378,6 +397,35 @@ class MainActivity : AppCompatActivity() {
                             if (bigFixed[i].querySelector('video') === null) {
                                 bigFixed[i].style.display = 'none';
                             }
+                        }
+
+                        var overlaysSobreVideo = document.querySelectorAll(
+                            'div[style*="position: fixed"], div[style*="position:fixed"], ' +
+                            'div[style*="position: absolute"][style*="z-index"], ' +
+                            'div[class*="overlay"], div[class*="modal"], div[class*="popup"]'
+                        );
+                        for (var i = overlaysSobreVideo.length - 1; i >= 0; i--) {
+                            var el = overlaysSobreVideo[i];
+                            var tieneVideo = el.querySelector('video');
+                            var tieneCampana = el.querySelector('[class*="bell"], [class*="campana"], svg, [class*="notif"]');
+                            if (!tieneVideo && (tieneCampana || el.className.toString().match(/overlay|modal|popup|notif|bell|subscribe/i))) {
+                                el.style.display = 'none';
+                                el.remove();
+                            }
+                        }
+
+                        var campanitas = document.querySelectorAll('[class*="bell"], [class*="campana"], [class*="notif"], [class*="push"], [class*="subscribe"]');
+                        for (var i = campanitas.length - 1; i >= 0; i--) {
+                            var parent = campanitas[i].closest('div, section, aside');
+                            if (parent && parent.querySelector('video') === null) {
+                                parent.style.display = 'none';
+                                parent.remove();
+                            }
+                        }
+
+                        var clickBlockers = document.querySelectorAll('[class*="click-overlay"], [class*="click-blocker"], [class*="tap-overlay"], [class*="tap-block"], [class*="anti-adblock"]');
+                        for (var i = clickBlockers.length - 1; i >= 0; i--) {
+                            clickBlockers[i].remove();
                         }
                     } catch(e) {}
                 }
@@ -469,8 +517,12 @@ class MainActivity : AppCompatActivity() {
                 });
 
                 setTimeout(eliminarAds, 500);
+                setTimeout(eliminarAds, 1500);
                 setTimeout(eliminarAds, 2000);
+                setTimeout(eliminarAds, 3000);
                 setTimeout(eliminarAds, 5000);
+                setTimeout(eliminarAds, 8000);
+                setInterval(eliminarAds, 2000);
             })();
         """.trimIndent()
 
@@ -483,189 +535,105 @@ class MainActivity : AppCompatActivity() {
                 if (window.__tvNavInstalado) return;
                 window.__tvNavInstalado = true;
 
-                var style = document.createElement('style');
-                style.id = '__tv_nav_style';
-                style.textContent = '\
-                    .tv-focus{outline:4px solid #00e5ff !important;outline-offset:3px !important;border-radius:4px !important;box-shadow:0 0 12px rgba(0,229,255,0.5) !important;z-index:999999 !important;position:relative !important;}\
-                    *{scroll-behavior:auto !important;}\
-                    [tabindex="-1"]{tabindex:0 !important;}\
-                    [role="button"]:not([tabindex]),[role="link"]:not([tabindex]),[role="tab"]:not([tabindex]),[role="menuitem"]:not([tabindex]){tabindex:0 !important;}\
-                    a:not([tabindex]):not([href=""]),button:not([tabindex]),input:not([tabindex]),select:not([tabindex]),textarea:not([tabindex]),div[onclick]:not([tabindex]),span[onclick]:not([tabindex]),li[onclick]:not([tabindex]),img[onclick]:not([tabindex]){tabindex:0 !important;}\
-                ';
-                document.head.appendChild(style);
+                var SPEED = 25;
+                var FAST_SPEED = 60;
+                var cursorX = window.innerWidth / 2;
+                var cursorY = window.innerHeight / 2;
+                var moving = {};
 
-                var SEL = [
-                    'a[href]', 'button', 'input:not([type="hidden"])', 'select', 'textarea',
-                    '[tabindex]', '[onclick]',
-                    '[role="button"]', '[role="link"]', '[role="tab"]', '[role="menuitem"]',
-                    '[role="option"]', '[role="radio"]', '[role="checkbox"]',
-                    '.card', '.item', '.poster', '.movie', '.film', '.episode',
-                    '.server', '.source', '.option',
-                    '.btn', '.play-btn', '.play-button', '.source-btn', '.video-btn',
-                    '.nav-link', '.menu-item', '.dropdown-item',
-                    'li a', 'nav a',
-                    '[class*="play"]', '[class*="btn"]', '[class*="card"]',
-                    '[class*="poster"]', '[class*="movie"]', '[class*="episode"]',
-                    '[class*="server"]', '[class*="source"]', '[class*="item"]',
-                    '[class*="nav"] a', '[class*="menu"] a',
-                    'img[src]', 'img[onclick]', 'div[style*="background-image"]',
-                    '[class*="tab"]', '[class*="filter"]',
-                    '.pagination a', '.page-link', '[class*="page"]'
-                ].join(', ');
+                var cursor = document.createElement('div');
+                cursor.id = '__tv_cursor';
+                cursor.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;width:28px;height:28px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(0,229,255,0.7);background:rgba(0,229,255,0.15);';
+                document.body.appendChild(cursor);
 
-                function elementosFocables() {
-                    return Array.prototype.slice.call(
-                        document.querySelectorAll(SEL)
-                    ).filter(function(el) {
-                        try {
-                            var r = el.getBoundingClientRect();
-                            var s = window.getComputedStyle(el);
-                            if (r.width <= 0 || r.height <= 0) return false;
-                            if (s.display === 'none' || s.visibility === 'hidden') return false;
-                            if (parseFloat(s.opacity) === 0) return false;
-                            if (el.disabled) return false;
-                            if (el.tagName === 'INPUT' && el.type === 'hidden') return false;
-                            return true;
-                        } catch(ex) { return false; }
-                    });
-                }
+                var trail = document.createElement('div');
+                trail.style.cssText = 'position:fixed;z-index:2147483646;pointer-events:none;width:8px;height:8px;border-radius:50%;background:#00e5ff;transform:translate(-50%,-50%);opacity:0.4;transition:left 0.15s ease-out,top 0.15s ease-out;';
+                document.body.appendChild(trail);
 
-                var actual = null;
+                function update() {
+                    cursor.style.left = cursorX + 'px';
+                    cursor.style.top = cursorY + 'px';
+                    trail.style.left = cursorX + 'px';
+                    trail.style.top = cursorY + 'px';
 
-                function marcarFoco(el) {
-                    if (actual) {
-                        actual.classList.remove('tv-focus');
-                        actual.removeAttribute('data-tv-focus');
-                    }
-                    actual = el;
-                    if (actual) {
-                        actual.classList.add('tv-focus');
-                        actual.setAttribute('data-tv-focus', 'true');
-                        try {
-                            actual.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
-                        } catch(ex) {}
-                        try { actual.focus({preventScroll: true}); } catch(ex) {}
-                        try { actual.focus(); } catch(ex) {}
+                    var el = document.elementFromPoint(cursorX, cursorY);
+                    var clicky = findClickable(el);
+                    if (clicky) {
+                        cursor.style.borderColor = '#00ff88';
+                        cursor.style.boxShadow = '0 0 14px rgba(0,255,136,0.8)';
+                    } else {
+                        cursor.style.borderColor = '#00e5ff';
+                        cursor.style.boxShadow = '0 0 10px rgba(0,229,255,0.7)';
                     }
                 }
 
-                function centro(el) {
-                    var r = el.getBoundingClientRect();
-                    return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-                }
-
-                function enPantalla(el) {
-                    var r = el.getBoundingClientRect();
-                    return r.bottom > 0 && r.top < window.innerHeight &&
-                           r.right > 0 && r.left < window.innerWidth;
-                }
-
-                function moverFoco(direccion) {
-                    var candidatos = elementosFocables();
-                    if (!candidatos.length) return;
-
-                    if (!actual || candidatos.indexOf(actual) === -1) {
-                        var primerVisible = candidatos.find(function(el) { return enPantalla(el); });
-                        marcarFoco(primerVisible || candidatos[0]);
-                        return;
-                    }
-
-                    var origen = centro(actual);
-                    var mejor = null;
-                    var mejorScore = -Infinity;
-
-                    candidatos.forEach(function(el) {
-                        if (el === actual) return;
-
-                        var p = centro(el);
-                        var dx = p.x - origen.x;
-                        var dy = p.y - origen.y;
-                        var dist = Math.sqrt(dx * dx + dy * dy);
-
-                        if (dist < 5) return;
-
-                        var angulo = Math.atan2(dy, dx) * 180 / Math.PI;
-
-                        var valido = false;
-                        var tolerancia = 60;
-
-                        if (direccion === 'up' && angulo < -90 + tolerancia && angulo > -90 - tolerancia) valido = true;
-                        if (direccion === 'down' && angulo > 90 - tolerancia && angulo < 90 + tolerancia) valido = true;
-                        if (direccion === 'left' && (angulo > 180 - tolerancia || angulo < -180 + tolerancia || (angulo > -180 && angulo < -180 + tolerancia))) valido = true;
-                        if (direccion === 'right' && angulo > -tolerancia && angulo < tolerancia) valido = true;
-
-                        if (!valido) {
-                            if (direccion === 'up' && dy < -5) valido = true;
-                            if (direccion === 'down' && dy > 5) valido = true;
-                            if (direccion === 'left' && dx < -5) valido = true;
-                            if (direccion === 'right' && dx > 5) valido = true;
+                function findClickable(el) {
+                    if (!el) return null;
+                    var c = el;
+                    for (var i = 0; i < 8; i++) {
+                        if (!c || c === document.body || c === document.documentElement) break;
+                        var tag = c.tagName;
+                        var role = c.getAttribute('role');
+                        var cs = window.getComputedStyle(c).cursor;
+                        if (tag === 'A' || tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' ||
+                            role === 'button' || role === 'link' || role === 'tab' || role === 'menuitem' ||
+                            c.onclick || cs === 'pointer') {
+                            return c;
                         }
+                        c = c.parentElement;
+                    }
+                    return null;
+                }
 
-                        if (!valido) return;
+                function doClick() {
+                    var el = document.elementFromPoint(cursorX, cursorY);
+                    if (!el) return;
+                    var target = findClickable(el) || el;
 
-                        var enPant = enPantalla(el) ? 1000 : 0;
-                        var score = enPant - dist;
-                        if (score > mejorScore) { mejorScore = score; mejor = el; }
-                    });
+                    var opts = {bubbles: true, clientX: cursorX, clientY: cursorY, cancelable: true};
+                    target.dispatchEvent(new MouseEvent('mousedown', opts));
+                    target.dispatchEvent(new MouseEvent('mouseup', opts));
+                    target.dispatchEvent(new MouseEvent('click', opts));
 
-                    if (mejor) marcarFoco(mejor);
+                    var ripple = document.createElement('div');
+                    ripple.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;width:60px;height:60px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);left:' + cursorX + 'px;top:' + cursorY + 'px;opacity:1;transition:opacity 0.4s,transform 0.4s;';
+                    document.body.appendChild(ripple);
+                    setTimeout(function() { ripple.style.opacity = '0'; ripple.style.transform = 'translate(-50%,-50%) scale(1.5)'; }, 10);
+                    setTimeout(function() { ripple.remove(); }, 400);
+                }
+
+                function startMove(dir) {
+                    if (moving[dir]) return;
+                    moving[dir] = true;
+                    function step() {
+                        if (!moving[dir]) return;
+                        var s = moving.shift_key ? FAST_SPEED : SPEED;
+                        switch(dir) {
+                            case 'up': cursorY -= s; break;
+                            case 'down': cursorY += s; break;
+                            case 'left': cursorX -= s; break;
+                            case 'right': cursorX += s; break;
+                        }
+                        cursorX = Math.max(2, Math.min(window.innerWidth - 2, cursorX));
+                        cursorY = Math.max(2, Math.min(window.innerHeight - 2, cursorY));
+                        update();
+                        requestAnimationFrame(step);
+                    }
+                    step();
+                }
+
+                function stopMove(dir) {
+                    moving[dir] = false;
                 }
 
                 window.__tvNav = {
-                    move: moverFoco,
-                    click: function() {
-                        if (actual) {
-                            actual.click();
-                            var link = actual.querySelector('a');
-                            if (link) link.click();
-                        }
-                    },
-                    getActual: function() { return actual; }
+                    move: function(dir) { startMove(dir); },
+                    stop: function(dir) { stopMove(dir); },
+                    click: doClick,
+                    shift: function(v) { moving.shift_key = v; }
                 };
 
-                marcarFoco(elementosFocables()[0]);
-
-                var lastScroll = 0;
-                var scrollCheckCount = 0;
-
-                var obs = new MutationObserver(function() {
-                    scrollCheckCount++;
-                    if (scrollCheckCount % 5 === 0) {
-                        var nuevos = elementosFocables();
-                        if (actual && nuevos.indexOf(actual) === -1 && nuevos.length > 0) {
-                            var masCercano = null;
-                            var menorDist = Infinity;
-                            nuevos.forEach(function(el) {
-                                var r = el.getBoundingClientRect();
-                                var d = Math.abs(r.top - window.innerHeight / 2);
-                                if (d < menorDist) { menorDist = d; masCercano = el; }
-                            });
-                            marcarFoco(masCercano);
-                        }
-                    }
-                });
-                obs.observe(document.body || document.documentElement, {childList: true, subtree: true});
-
-                window.addEventListener('scroll', function() {
-                    var now = Date.now();
-                    if (now - lastScroll > 300) {
-                        lastScroll = now;
-                        if (actual && !enPantalla(actual)) {
-                            var nuevos = elementosFocables();
-                            var masCercano = null;
-                            var menorDist = Infinity;
-                            nuevos.forEach(function(el) {
-                                var r = el.getBoundingClientRect();
-                                var centroY = r.top + r.height / 2;
-                                var centroX = r.left + r.width / 2;
-                                var d = Math.abs(centroX - window.innerWidth / 2) + Math.abs(centroY - window.innerHeight / 2);
-                                if (d < menorDist) { menorDist = d; masCercano = el; }
-                            });
-                            if (masCercano) marcarFoco(masCercano);
-                        }
-                    }
-                }, {passive: true});
-
+                update();
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
@@ -853,25 +821,7 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                webView.evaluateJavascript(
-                    """
-                    (function() {
-                        var v = document.querySelector('video');
-                        if (v && !v.paused) { v.pause(); return; }
-                        if (v && v.paused) { v.play(); return; }
-                        var iframes = document.querySelectorAll('iframe');
-                        for (var i = 0; i < iframes.length; i++) {
-                            var src = (iframes[i].src || '').toLowerCase();
-                            if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1 ||
-                                src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 ||
-                                src.indexOf('voe') !== -1) {
-                                try { iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}), '*'); } catch(e) {}
-                            }
-                        }
-                        window.__tvNav && window.__tvNav.click();
-                    })();
-                    """.trimIndent(), null
-                )
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
                 return true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
@@ -896,41 +846,13 @@ class MainActivity : AppCompatActivity() {
             }
             KeyEvent.KEYCODE_MEDIA_PLAY -> {
                 webView.evaluateJavascript(
-                    """
-                    (function() {
-                        var v = document.querySelector('video');
-                        if (v) { v.play(); return; }
-                        var iframes = document.querySelectorAll('iframe');
-                        for (var i = 0; i < iframes.length; i++) {
-                            var src = (iframes[i].src || '').toLowerCase();
-                            if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1 ||
-                                src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 ||
-                                src.indexOf('voe') !== -1) {
-                                try { iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}), '*'); } catch(e) {}
-                            }
-                        }
-                    })();
-                    """.trimIndent(), null
+                    "var v=document.querySelector('video');if(v)v.play();", null
                 )
                 return true
             }
             KeyEvent.KEYCODE_MEDIA_PAUSE -> {
                 webView.evaluateJavascript(
-                    """
-                    (function() {
-                        var v = document.querySelector('video');
-                        if (v) { v.pause(); return; }
-                        var iframes = document.querySelectorAll('iframe');
-                        for (var i = 0; i < iframes.length; i++) {
-                            var src = (iframes[i].src || '').toLowerCase();
-                            if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1 ||
-                                src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 ||
-                                src.indexOf('voe') !== -1) {
-                                try { iframes[i].contentWindow.postMessage(JSON.stringify({method:'pause'}), '*'); } catch(e) {}
-                            }
-                        }
-                    })();
-                    """.trimIndent(), null
+                    "var v=document.querySelector('video');if(v)v.pause();", null
                 )
                 return true
             }
@@ -950,8 +872,33 @@ class MainActivity : AppCompatActivity() {
                 toggleFullscreen()
                 return true
             }
+            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
+                return false
+            }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('up')", null)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('down')", null)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('left')", null)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('right')", null)
+                return true
+            }
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun onDestroy() {
