@@ -944,6 +944,26 @@ class MainActivity : AppCompatActivity() {
                                 ifr.contentWindow.postMessage('{"event":"play"}', '*');
                                 ifr.contentWindow.postMessage(JSON.stringify({type:'play'}), '*');
                             }
+
+                            // Respaldo: el postMessage solo funciona si el reproductor de adentro
+                            // lo escucha. Muchos NO lo hacen y solo reaccionan a un click/touch real
+                            // sobre su botón de play. Como JS no puede "ver" adentro de un iframe de
+                            // otro dominio, le pedimos a Android un toque físico real sobre el centro
+                            // del iframe (una sola vez por iframe, con un pequeño retraso para no
+                            // pausar un video que ya esté reproduciéndose).
+                            if (!ifr._autoTapIntentado) {
+                                var r = ifr.getBoundingClientRect();
+                                if (r.width > 100 && r.height > 100) {
+                                    ifr._autoTapIntentado = true;
+                                    var cx2 = r.left + r.width / 2;
+                                    var cy2 = r.top + r.height / 2;
+                                    setTimeout(function(x, y) {
+                                        return function() {
+                                            if (window.AndroidBridge) window.AndroidBridge.tapAt(x, y);
+                                        };
+                                    }(cx2, cy2), 1400);
+                                }
+                            }
                         }
                     } catch(e) {}
                 }
