@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -191,6 +192,12 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Evita que el protector de pantalla / suspensión del TV se active mientras
+        // la app está al frente (independiente de la configuración del sistema).
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        activarPantallaCompleta()
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webView)
@@ -199,6 +206,25 @@ class MainActivity : AppCompatActivity() {
 
         configurarWebView()
         webView.loadUrl(targetUrl)
+    }
+
+    // El modo inmersivo a veces se "suelta" solo cuando la ventana recupera el foco
+    // (por ejemplo al volver de un diálogo del sistema); lo reforzamos aquí.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) activarPantallaCompleta()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun activarPantallaCompleta() {
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            )
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -822,10 +848,23 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     if (target) {
-                        var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
-                        target.dispatchEvent(new MouseEvent('mousedown', opts));
-                        target.dispatchEvent(new MouseEvent('mouseup', opts));
-                        target.dispatchEvent(new MouseEvent('click', opts));
+                        // Los campos de texto (buscador, etc.) necesitan un toque FÍSICO real
+                        // para que el navegador abra el teclado en pantalla; un click simulado
+                        // por JS enfoca el campo pero no dispara el teclado (restricción de
+                        // seguridad de los navegadores contra popups de teclado no solicitados).
+                        var esCampoDeTexto = (target.tagName === 'INPUT' &&
+                                ['text','search','email','tel','password','url','number'].indexOf((target.type || 'text').toLowerCase()) !== -1) ||
+                            target.tagName === 'TEXTAREA' ||
+                            target.isContentEditable;
+
+                        if (esCampoDeTexto && window.AndroidBridge) {
+                            window.AndroidBridge.tapAt(cx, cy);
+                        } else {
+                            var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
+                            target.dispatchEvent(new MouseEvent('mousedown', opts));
+                            target.dispatchEvent(new MouseEvent('mouseup', opts));
+                            target.dispatchEvent(new MouseEvent('click', opts));
+                        }
                     } else if (window.AndroidBridge) {
                         // Sin ancestro clicable identificable: probablemente es contenido
                         // dibujado dentro de un iframe cross-origin que no detectamos como
