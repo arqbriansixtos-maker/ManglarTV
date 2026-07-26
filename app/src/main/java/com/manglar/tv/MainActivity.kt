@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
-import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -139,8 +138,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         webView = findViewById(R.id.webView)
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
@@ -287,7 +284,7 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
-        settings.loadWithOverviewMode = false
+        settings.loadWithOverviewMode = true
         settings.useWideViewPort = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -725,11 +722,6 @@ class MainActivity : AppCompatActivity() {
                         target.dispatchEvent(new MouseEvent('mouseup', opts));
                         target.dispatchEvent(new MouseEvent('click', opts));
                         target.click();
-                        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-                            target.focus();
-                            target.dispatchEvent(new FocusEvent('focus', {bubbles: true}));
-                            target.dispatchEvent(new FocusEvent('focusin', {bubbles: true}));
-                        }
                     } catch(e) {}
                 }
 
