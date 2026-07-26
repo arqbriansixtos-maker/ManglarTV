@@ -418,6 +418,7 @@ class MainActivity : AppCompatActivity() {
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
+                inyectarAjusteDeAnchoHorizontal()
                 webView.requestFocus()
             }
 
@@ -730,6 +731,66 @@ class MainActivity : AppCompatActivity() {
     // Hookea history.pushState / replaceState / popstate para reportar cada cambio de
     // URL a Android. Necesario porque muchos sitios de una sola página navegan con
     // replaceState() y eso NO queda registrado en el historial nativo del WebView.
+    // El sitio no está diseñado para el ancho de un TV y su contenido puede ser más ancho
+    // que la pantalla, dejando botones/elementos fuera de vista a los lados. Esto mide el
+    // ancho real del contenido y, si es más ancho que la pantalla, lo escala hacia abajo
+    // (proporcionalmente, sin deformar) para que quepa exacto de borde a borde en horizontal.
+    // El alto puede quedar más largo (con scroll vertical), que es aceptable.
+    private fun inyectarAjusteDeAnchoHorizontal() {
+        val js = """
+            (function() {
+                if (window.__ajusteEscalaInstalado) return;
+                window.__ajusteEscalaInstalado = true;
+
+                var ajustando = false;
+
+                function ajustarEscala() {
+                    try {
+                        // Reiniciar antes de medir, para no arrastrar una escala previa
+                        // y terminar encogiendo el contenido cada vez más.
+                        document.body.style.transformOrigin = '0 0';
+                        document.body.style.transform = 'none';
+                        document.body.style.width = '';
+                        document.documentElement.style.overflowX = 'hidden';
+
+                        var anchoContenido = document.documentElement.scrollWidth;
+                        var anchoPantalla = window.innerWidth;
+
+                        if (anchoContenido > anchoPantalla + 3) {
+                            var escala = anchoPantalla / anchoContenido;
+                            document.body.style.transform = 'scale(' + escala + ')';
+                            document.body.style.width = anchoContenido + 'px';
+                        }
+                    } catch (e) {}
+                }
+
+                function solicitarAjuste() {
+                    if (ajustando) return;
+                    ajustando = true;
+                    requestAnimationFrame(function() {
+                        ajustarEscala();
+                        ajustando = false;
+                    });
+                }
+
+                solicitarAjuste();
+                window.addEventListener('resize', solicitarAjuste);
+
+                var observer = new MutationObserver(solicitarAjuste);
+                observer.observe(document.body || document.documentElement, {
+                    childList: true,
+                    subtree: true
+                });
+
+                setTimeout(solicitarAjuste, 500);
+                setTimeout(solicitarAjuste, 1500);
+                setTimeout(solicitarAjuste, 3000);
+                setTimeout(solicitarAjuste, 6000);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
     private fun inyectarSeguimientoDeHistorial() {
         val js = """
             (function() {
@@ -1128,3 +1189,4 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
+                        
