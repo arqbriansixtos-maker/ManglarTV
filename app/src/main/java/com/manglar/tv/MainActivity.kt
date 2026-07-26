@@ -2,8 +2,11 @@ package com.manglar.tv
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -12,6 +15,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayInputStream
 
@@ -23,6 +27,12 @@ class MainActivity : AppCompatActivity() {
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
+
+    // Historial propio de URLs: muchos sitios tipo SPA navegan con history.replaceState()
+    // en vez de pushState(), lo que significa que webView.canGoBack() nunca detecta esas
+    // navegaciones. Lo llevamos nosotros mismos como respaldo.
+    private val pilaHistorial = mutableListOf<String>()
+    private var ultimoBackPressTime = 0L
 
     private val targetUrl = "https://manglarpelis.manglar.fun/"
 
@@ -134,6 +144,50 @@ class MainActivity : AppCompatActivity() {
         "[id*=\"preroll\"]", "[id*=\"midroll\"]", "[id*=\"overlay-ad\"]"
     )
 
+    // Puente JS -> Android: cuando el botón de play está DENTRO de un iframe de otro
+    // dominio (el reproductor externo), JS de la página principal no puede hacer click
+    // "de adentro" por la política de mismo origen. Este puente recibe coordenadas y
+    // simula un toque físico real en la pantalla, que sí llega al contenido del iframe.
+    inner class PlayerBridge {
+        @JavascriptInterface
+        fun tapAt(x: Float, y: Float) {
+            runOnUiThread { simularToqueReal(x, y) }
+        }
+    }
+
+    private fun simularToqueReal(cssX: Float, cssY: Float) {
+        // Las coordenadas llegan en píxeles CSS del viewport; se convierten a píxeles
+        // reales de pantalla con la densidad del dispositivo.
+        val densidad = resources.displayMetrics.density
+        val x = cssX * densidad
+        val y = cssY * densidad
+
+        val downTime = SystemClock.uptimeMillis()
+        val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+        val up = MotionEvent.obtain(downTime, downTime + 80, MotionEvent.ACTION_UP, x, y, 0)
+        webView.dispatchTouchEvent(down)
+        webView.dispatchTouchEvent(up)
+        down.recycle()
+        up.recycle()
+    }
+
+    // Puente JS -> Android: nos avisa cada vez que la URL cambia dentro del sitio,
+    // incluso cuando el sitio usa history.replaceState() (que NO genera una entrada
+    // nueva en el historial nativo del WebView, y por eso canGoBack() no lo detecta).
+    inner class HistorialBridge {
+        @JavascriptInterface
+        fun reportarUrl(url: String) {
+            runOnUiThread { registrarUrlEnHistorial(url) }
+        }
+    }
+
+    private fun registrarUrlEnHistorial(url: String) {
+        if (pilaHistorial.isEmpty() || pilaHistorial.last() != url) {
+            pilaHistorial.add(url)
+            if (pilaHistorial.size > 50) pilaHistorial.removeAt(0)
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -163,7 +217,7 @@ class MainActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
                     else -> return false
                 }
-                webView.evaluateJavascript("window.__tvNav.move('$dir')", null)
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.move('$dir')", null)
                 return true
             }
             if (event.action == KeyEvent.ACTION_UP) {
@@ -174,14 +228,20 @@ class MainActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
                     else -> return false
                 }
-                webView.evaluateJavascript("window.__tvNav.stop('$dir')", null)
+                webView.evaluateJavascript("window.__tvNav && window.__tvNav.stop('$dir')", null)
                 return true
             }
         }
 
+        // FIX: antes este bloque solo hacía .focus() sobre el elemento bajo el cursor
+        // y nunca llamaba a window.__tvNav.click() (la función que sí dispara el click real).
+        // Por eso el cursor se movía pero OK/Enter no hacía nada.
         if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
+                return true
+            }
+            if (event.action == KeyEvent.ACTION_UP) {
                 return true
             }
         }
@@ -195,6 +255,24 @@ class MainActivity : AppCompatActivity() {
                     }
                     if (webView.canGoBack()) {
                         webView.goBack()
+                        return true
+                    }
+                    // Respaldo para sitios tipo SPA (replaceState): usamos nuestro
+                    // propio historial de URLs para volver a la página anterior.
+                    if (pilaHistorial.size > 1) {
+                        pilaHistorial.removeAt(pilaHistorial.size - 1) // quita la URL actual
+                        val anterior = pilaHistorial.last()
+                        webView.loadUrl(anterior)
+                        return true
+                    }
+                    // Ya estamos en la raíz de la navegación: exige doble back para
+                    // salir de verdad, así se evitan salidas accidentales de la app.
+                    val ahora = System.currentTimeMillis()
+                    if (ahora - ultimoBackPressTime < 2000) {
+                        // segundo back dentro de 2s: deja pasar el evento (sale de la app)
+                    } else {
+                        ultimoBackPressTime = ahora
+                        Toast.makeText(this, "Presiona atrás de nuevo para salir", Toast.LENGTH_SHORT).show()
                         return true
                     }
                 }
@@ -294,6 +372,11 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.setSupportMultipleWindows(false)
 
+        // Puente para simular toques reales cuando el play esté dentro de un iframe externo.
+        webView.addJavascriptInterface(PlayerBridge(), "AndroidBridge")
+        // Puente para llevar nuestro propio historial de navegación (ver HistorialBridge).
+        webView.addJavascriptInterface(HistorialBridge(), "HistorialBridge")
+
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
 
@@ -308,6 +391,7 @@ class MainActivity : AppCompatActivity() {
                 inyectarBloqueoAds()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
+                inyectarSeguimientoDeHistorial()
                 webView.requestFocus()
             }
 
@@ -617,6 +701,42 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
+    // Hookea history.pushState / replaceState / popstate para reportar cada cambio de
+    // URL a Android. Necesario porque muchos sitios de una sola página navegan con
+    // replaceState() y eso NO queda registrado en el historial nativo del WebView.
+    private fun inyectarSeguimientoDeHistorial() {
+        val js = """
+            (function() {
+                if (window.__historialInstalado) return;
+                window.__historialInstalado = true;
+
+                function reportar() {
+                    if (window.HistorialBridge) {
+                        window.HistorialBridge.reportarUrl(location.href);
+                    }
+                }
+
+                var origPush = history.pushState;
+                history.pushState = function() {
+                    origPush.apply(history, arguments);
+                    reportar();
+                };
+
+                var origReplace = history.replaceState;
+                history.replaceState = function() {
+                    origReplace.apply(history, arguments);
+                    reportar();
+                };
+
+                window.addEventListener('popstate', reportar);
+                window.addEventListener('hashchange', reportar);
+
+                reportar();
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
     private fun inyectarNavegacionTV() {
         val js = """
             (function() {
@@ -636,32 +756,6 @@ class MainActivity : AppCompatActivity() {
                 function draw() {
                     cursor.style.left = cx + 'px';
                     cursor.style.top = cy + 'px';
-                    focusElement();
-                }
-
-                function focusElement() {
-                    try {
-                        cursor.style.pointerEvents = 'none';
-                        var el = document.elementFromPoint(cx, cy);
-                        if (!el) return;
-                        var c = el;
-                        for (var i = 0; i < 15; i++) {
-                            if (!c || c === document.body || c === document.documentElement) break;
-                            if (c.tagName === 'IFRAME') { c.focus(); return; }
-                            if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
-                                c.tagName === 'SELECT' || c.tagName === 'TEXTAREA' ||
-                                c.getAttribute('role') === 'button' || c.getAttribute('role') === 'link' ||
-                                c.getAttribute('role') === 'tab' || c.getAttribute('role') === 'menuitem' ||
-                                (c.getAttribute('tabindex') !== null && c.getAttribute('tabindex') !== '-1') ||
-                                c.tabIndex > 0 ||
-                                window.getComputedStyle(c).cursor === 'pointer') {
-                                c.focus();
-                                return;
-                            }
-                            c = c.parentElement;
-                        }
-                        if (el.tabIndex >= 0) el.focus();
-                    } catch(e) {}
                 }
 
                 function autoScroll() {
@@ -694,35 +788,80 @@ class MainActivity : AppCompatActivity() {
 
                 function stop(dir) {
                     if (timers[dir]) { clearInterval(timers[dir]); timers[dir] = null; }
-                    focusElement();
                 }
 
                 function doClick() {
-                    try {
-                        cursor.style.display = 'none';
-                        var el = document.elementFromPoint(cx, cy);
-                        cursor.style.display = 'block';
-                        if (!el) return;
-                        var c = el;
-                        var target = el;
-                        for (var i = 0; i < 10; i++) {
-                            if (!c || c === document.body || c === document.documentElement) break;
-                            if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
-                                c.tagName === 'SELECT' || c.tagName === 'TEXTAREA' ||
-                                c.getAttribute('role') === 'button' || c.getAttribute('role') === 'link' ||
-                                c.getAttribute('role') === 'tab' || c.getAttribute('role') === 'menuitem' ||
-                                c.onclick || window.getComputedStyle(c).cursor === 'pointer') {
-                                target = c;
-                                break;
-                            }
-                            c = c.parentElement;
+                    cursor.style.display = 'none';
+                    var el = document.elementFromPoint(cx, cy);
+                    cursor.style.display = '';
+                    if (!el) return;
+
+                    // Si lo que hay bajo el cursor es directamente un IFRAME (reproductor
+                    // externo), el click de JS no puede llegar "adentro" por seguridad del
+                    // navegador. En ese caso usamos un toque real simulado por Android.
+                    if (el.tagName === 'IFRAME') {
+                        if (window.AndroidBridge) {
+                            window.AndroidBridge.tapAt(cx, cy);
                         }
+                        return;
+                    }
+
+                    var target = null;
+                    var c = el;
+                    for (var i = 0; i < 10; i++) {
+                        if (!c || c === document.body || c === document.documentElement) break;
+                        if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
+                            c.tagName === 'SELECT' || c.tagName === 'TEXTAREA' ||
+                            c.getAttribute('role') === 'button' || c.getAttribute('role') === 'link' ||
+                            c.getAttribute('role') === 'tab' || c.getAttribute('role') === 'menuitem' ||
+                            c.onclick || window.getComputedStyle(c).cursor === 'pointer') {
+                            target = c;
+                            break;
+                        }
+                        c = c.parentElement;
+                    }
+
+                    if (target) {
                         var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
                         target.dispatchEvent(new MouseEvent('mousedown', opts));
                         target.dispatchEvent(new MouseEvent('mouseup', opts));
                         target.dispatchEvent(new MouseEvent('click', opts));
-                        target.click();
-                    } catch(e) {}
+                    } else if (window.AndroidBridge) {
+                        // Sin ancestro clicable identificable: probablemente es contenido
+                        // dibujado dentro de un iframe cross-origin que no detectamos como
+                        // tal directamente (a veces el iframe está debajo de una capa
+                        // transparente). Toque real como último recurso.
+                        window.AndroidBridge.tapAt(cx, cy);
+                    }
+
+                    var videos = document.querySelectorAll('video');
+                    for (var i = 0; i < videos.length; i++) {
+                        if (videos[i].paused) {
+                            videos[i].play().catch(function(){});
+                        }
+                    }
+
+                    var iframes = document.querySelectorAll('iframe');
+                    for (var i = 0; i < iframes.length; i++) {
+                        var src = (iframes[i].src || '').toLowerCase();
+                        if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1 ||
+                            src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 ||
+                            src.indexOf('voe') !== -1) {
+                            try {
+                                iframes[i].contentWindow.postMessage(JSON.stringify({method:'play'}), '*');
+                                iframes[i].contentWindow.postMessage('{"event":"play"}', '*');
+                            } catch(e) {}
+                        }
+                    }
+
+                    var spaceEvt = new KeyboardEvent('keydown', {key:' ', code:'Space', keyCode:32, which:32, bubbles:true});
+                    document.dispatchEvent(spaceEvt);
+
+                    var r = document.createElement('div');
+                    r.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none;width:50px;height:50px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);left:' + cx + 'px;top:' + cy + 'px;opacity:1;transition:opacity 0.3s;';
+                    document.documentElement.appendChild(r);
+                    setTimeout(function() { r.style.opacity = '0'; }, 10);
+                    setTimeout(function() { r.remove(); }, 350);
                 }
 
                 window.__tvNav = {
@@ -885,6 +1024,26 @@ class MainActivity : AppCompatActivity() {
                             if (src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 || src.indexOf('voe') !== -1) {
                                 ifr.contentWindow.postMessage('{"event":"play"}', '*');
                                 ifr.contentWindow.postMessage(JSON.stringify({type:'play'}), '*');
+                            }
+
+                            // Respaldo: el postMessage solo funciona si el reproductor de adentro
+                            // lo escucha. Muchos NO lo hacen y solo reaccionan a un click/touch real
+                            // sobre su botón de play. Como JS no puede "ver" adentro de un iframe de
+                            // otro dominio, le pedimos a Android un toque físico real sobre el centro
+                            // del iframe (una sola vez por iframe, con un pequeño retraso para no
+                            // pausar un video que ya esté reproduciéndose).
+                            if (!ifr._autoTapIntentado) {
+                                var r = ifr.getBoundingClientRect();
+                                if (r.width > 100 && r.height > 100) {
+                                    ifr._autoTapIntentado = true;
+                                    var cx2 = r.left + r.width / 2;
+                                    var cy2 = r.top + r.height / 2;
+                                    setTimeout(function(x, y) {
+                                        return function() {
+                                            if (window.AndroidBridge) window.AndroidBridge.tapAt(x, y);
+                                        };
+                                    }(cx2, cy2), 1400);
+                                }
                             }
                         }
                     } catch(e) {}
