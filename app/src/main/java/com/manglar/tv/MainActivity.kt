@@ -308,7 +308,6 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
-                inyectarViewport()
                 inyectarBloqueoAds()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
@@ -453,23 +452,6 @@ class MainActivity : AppCompatActivity() {
                 return false
             }
         }
-    }
-
-    private fun inyectarViewport() {
-        val js = """
-            (function() {
-                var meta = document.querySelector('meta[name="viewport"]');
-                if (meta) {
-                    meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
-                } else {
-                    meta = document.createElement('meta');
-                    meta.name = 'viewport';
-                    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
-                    document.head.appendChild(meta);
-                }
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
     }
 
     private fun inyectarBloqueoAds() {
