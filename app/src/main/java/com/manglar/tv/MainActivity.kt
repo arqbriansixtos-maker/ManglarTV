@@ -547,10 +547,10 @@ class MainActivity : AppCompatActivity() {
                 var s = document.createElement('style');
                 s.id = '__anti_overflow';
                 s.textContent = 'html,body{overflow-x:hidden!important;width:100%!important;}' +
-                    '*{max-width:100vw!important;}' +
+                    '*:not(#__tv_cursor):not(#__tv_cursor *){max-width:100vw!important;}' +
                     'video{max-width:100%!important;width:auto!important;height:auto!important;}' +
                     'iframe{max-width:100%!important;}' +
-                    '[style*="width:"][style*="position: fixed"],[style*="width:"][style*="position:fixed"]{width:100vw!important;height:auto!important;}';
+                    '[style*="width:"][style*="position: fixed"]:not([id="__tv_cursor"]),[style*="width:"][style*="position:fixed"]:not([id="__tv_cursor"]){width:100vw!important;height:auto!important;}';
                 document.head.appendChild(s);
             })();
         """.trimIndent()
@@ -979,7 +979,7 @@ class MainActivity : AppCompatActivity() {
                     var iframes = document.querySelectorAll('iframe');
                     for (var i = 0; i < iframes.length; i++) {
                         var src = (iframes[i].src || '').toLowerCase();
-                        if (src.indexOf('vimeo') !== -1 || src.indexOf('player') !== -1 ||
+                        if (src.indexOf('vimeo') !== -1 || src.indexOf('player')!==-1 ||
                             src.indexOf('vidhide') !== -1 || src.indexOf('streamwish') !== -1 ||
                             src.indexOf('voe') !== -1) {
                             try {
