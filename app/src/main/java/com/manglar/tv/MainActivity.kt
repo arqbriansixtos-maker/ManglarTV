@@ -398,6 +398,15 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.setSupportMultipleWindows(false)
 
+        // Zoom nativo del WebView al 80% (no CSS): el motor de renderizado escala la
+        // página completa a nivel nativo, por lo que la traducción de toques/eventos a
+        // coordenadas de pantalla se mantiene correcta (a diferencia de CSS 'zoom' en
+        // documentElement, que rompía elementFromPoint y el D-pad/Enter en WebView).
+        settings.setSupportZoom(true)
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
+        webView.setInitialScale(80)
+
         // Puente para simular toques reales cuando el play esté dentro de un iframe externo.
         webView.addJavascriptInterface(PlayerBridge(), "AndroidBridge")
         // Puente para llevar nuestro propio historial de navegación (ver HistorialBridge).
@@ -410,12 +419,15 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 progressBar.visibility = View.VISIBLE
+                // Se reafirma en cada navegación (incluyendo las de tipo SPA con
+                // replaceState) porque el WebView a veces "olvida" el initialScale
+                // al no recargar la página completa.
+                webView.setInitialScale(80)
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
                 inyectarBloqueoAds()
-                inyectarZoomPagina()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
@@ -727,25 +739,6 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
 
-        webView.evaluateJavascript(js, null)
-    }
-
-    // Aplica un zoom fijo del 80% a toda la página usando la propiedad CSS 'zoom'
-    // (no estándar oficial, pero soportada por todos los navegadores basados en
-    // Chromium, incluido el WebView de Android). Se usa 'zoom' en vez de
-    // 'transform: scale()' porque 'zoom' reajusta el layout real: el contenido
-    // "cree" que la pantalla es más chica, en vez de solo verse escalado. Esto es
-    // importante porque inyectarAjusteDeAnchoHorizontal() mide scrollWidth después,
-    // y necesita que esa medición ya refleje el zoom aplicado. Por eso se inyecta
-    // antes que las funciones de ajuste de ancho/scroll en onPageFinished.
-    private fun inyectarZoomPagina() {
-        val js = """
-            (function() {
-                if (window.__zoomPaginaInstalado) return;
-                window.__zoomPaginaInstalado = true;
-                document.documentElement.style.zoom = '80%';
-            })();
-        """.trimIndent()
         webView.evaluateJavascript(js, null)
     }
 
