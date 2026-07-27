@@ -29,9 +29,6 @@ class MainActivity : AppCompatActivity() {
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
 
-    // Historial propio de URLs: muchos sitios tipo SPA navegan con history.replaceState()
-    // en vez de pushState(), lo que significa que webView.canGoBack() nunca detecta esas
-    // navegaciones. Lo llevamos nosotros mismos como respaldo.
     private val pilaHistorial = mutableListOf<String>()
     private var ultimoBackPressTime = 0L
 
@@ -145,23 +142,18 @@ class MainActivity : AppCompatActivity() {
         "[id*=\"preroll\"]", "[id*=\"midroll\"]", "[id*=\"overlay-ad\"]"
     )
 
-    // Puente JS -> Android: cuando el botón de play está DENTRO de un iframe de otro
-    // dominio (el reproductor externo), JS de la página principal no puede hacer click
-    // "de adentro" por la política de mismo origen. Este puente recibe coordenadas y
-    // simula un toque físico real en la pantalla, que sí llega al contenido del iframe.
     inner class PlayerBridge {
         @JavascriptInterface
-        fun tapAt(x: Float, y: Float) {
-            runOnUiThread { simularToqueReal(x, y) }
+        fun tapAt(x: Float, y: Float, zoom: Float) {
+            runOnUiThread { simularToqueReal(x, y, zoom) }
         }
     }
 
-    private fun simularToqueReal(cssX: Float, cssY: Float) {
-        // Las coordenadas llegan en píxeles CSS del viewport; se convierten a píxeles
-        // reales de pantalla con la densidad del dispositivo.
+    private fun simularToqueReal(cssX: Float, cssY: Float, zoom: Float) {
         val densidad = resources.displayMetrics.density
-        val x = cssX * densidad
-        val y = cssY * densidad
+        val factorZoom = if (zoom > 0f) zoom else 1f
+        val x = cssX * densidad * factorZoom
+        val y = cssY * densidad * factorZoom
 
         val downTime = SystemClock.uptimeMillis()
         val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
@@ -172,9 +164,6 @@ class MainActivity : AppCompatActivity() {
         up.recycle()
     }
 
-    // Puente JS -> Android: nos avisa cada vez que la URL cambia dentro del sitio,
-    // incluso cuando el sitio usa history.replaceState() (que NO genera una entrada
-    // nueva en el historial nativo del WebView, y por eso canGoBack() no lo detecta).
     inner class HistorialBridge {
         @JavascriptInterface
         fun reportarUrl(url: String) {
@@ -193,8 +182,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Evita que el protector de pantalla / suspensión del TV se active mientras
-        // la app está al frente (independiente de la configuración del sistema).
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         activarPantallaCompleta()
@@ -208,8 +195,6 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl(targetUrl)
     }
 
-    // El modo inmersivo a veces se "suelta" solo cuando la ventana recupera el foco
-    // (por ejemplo al volver de un diálogo del sistema); lo reforzamos aquí.
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) activarPantallaCompleta()
@@ -259,9 +244,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // FIX: antes este bloque solo hacía .focus() sobre el elemento bajo el cursor
-        // y nunca llamaba a window.__tvNav.click() (la función que sí dispara el click real).
-        // Por eso el cursor se movía pero OK/Enter no hacía nada.
         if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
@@ -283,16 +265,12 @@ class MainActivity : AppCompatActivity() {
                         webView.goBack()
                         return true
                     }
-                    // Respaldo para sitios tipo SPA (replaceState): usamos nuestro
-                    // propio historial de URLs para volver a la página anterior.
                     if (pilaHistorial.size > 1) {
-                        pilaHistorial.removeAt(pilaHistorial.size - 1) // quita la URL actual
+                        pilaHistorial.removeAt(pilaHistorial.size - 1)
                         val anterior = pilaHistorial.last()
                         webView.loadUrl(anterior)
                         return true
                     }
-                    // Ya estamos en la raíz de la navegación: exige doble back para
-                    // salir de verdad, así se evitan salidas accidentales de la app.
                     val ahora = System.currentTimeMillis()
                     if (ahora - ultimoBackPressTime < 2000) {
                         // segundo back dentro de 2s: deja pasar el evento (sale de la app)
@@ -398,9 +376,7 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.setSupportMultipleWindows(false)
 
-        // Puente para simular toques reales cuando el play esté dentro de un iframe externo.
         webView.addJavascriptInterface(PlayerBridge(), "AndroidBridge")
-        // Puente para llevar nuestro propio historial de navegación (ver HistorialBridge).
         webView.addJavascriptInterface(HistorialBridge(), "HistorialBridge")
 
         webView.isFocusable = true
@@ -729,19 +705,13 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    // Aplica un zoom fijo del 80% a toda la página usando la propiedad CSS `zoom`
-    // (no `transform`). A diferencia de `transform: scale()`, `zoom` SÍ recalcula
-    // el layout real: el scrollWidth/scrollHeight del documento se ajustan de verdad,
-    // así que el scroll (tanto vertical como horizontal) queda coherente con lo que
-    // se ve en pantalla, sin espacios vacíos de sobra ni desajustes.
-    // Los clicks tampoco se desalinean: `zoom` es exactamente el mecanismo que usan
-    // los navegadores para su propio "acercar/alejar", así que elementFromPoint()
-    // y las coordenadas del cursor TV siguen coincidiendo con lo que se ve.
     private fun inyectarZoomTV() {
         val js = """
             (function() {
                 if (window.__zoomInstalado) return;
                 window.__zoomInstalado = true;
+
+                window.__zoomTV = 0.8;
 
                 function aplicarZoom() {
                     try {
@@ -751,8 +721,6 @@ class MainActivity : AppCompatActivity() {
 
                 aplicarZoom();
 
-                // Algunos sitios SPA reescriben estilos del <html> al navegar;
-                // esto lo vuelve a forzar si eso llega a pasar.
                 var observer = new MutationObserver(function(mutations) {
                     for (var i = 0; i < mutations.length; i++) {
                         if (mutations[i].target === document.documentElement &&
@@ -775,13 +743,6 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    // Hookea history.pushState / replaceState / popstate para reportar cada cambio de
-    // URL a Android. Necesario porque muchos sitios de una sola página navegan con
-    // replaceState() y eso NO queda registrado en el historial nativo del WebView.
-    // Algunas franjas dentro de la página (como la lista de "Servidor: Externo, Spanish
-    // Main, ..." que aparece sobre el reproductor) tienen su PROPIO scroll horizontal
-    // interno, independiente del ancho general de la página. Esto los detecta y hace que
-    // sus elementos se acomoden en varias filas en vez de requerir mover una barra.
     private fun inyectarCorreccionDeBarrasConScroll() {
         val js = """
             (function() {
@@ -887,6 +848,10 @@ class MainActivity : AppCompatActivity() {
                 var cy = window.innerHeight / 2;
                 var timers = {};
 
+                function zoomActual() {
+                    return window.__zoomTV || 1;
+                }
+
                 var cursor = document.createElement('div');
                 cursor.id = '__tv_cursor';
                 cursor.style.cssText = 'position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;width:26px;height:26px;border:3px solid #00e5ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(0,229,255,0.6);background:rgba(0,229,255,0.1);left:50%;top:50%;';
@@ -935,12 +900,9 @@ class MainActivity : AppCompatActivity() {
                     cursor.style.display = '';
                     if (!el) return;
 
-                    // Si lo que hay bajo el cursor es directamente un IFRAME (reproductor
-                    // externo), el click de JS no puede llegar "adentro" por seguridad del
-                    // navegador. En ese caso usamos un toque real simulado por Android.
                     if (el.tagName === 'IFRAME') {
                         if (window.AndroidBridge) {
-                            window.AndroidBridge.tapAt(cx, cy);
+                            window.AndroidBridge.tapAt(cx, cy, zoomActual());
                         }
                         return;
                     }
@@ -961,17 +923,13 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     if (target) {
-                        // Los campos de texto (buscador, etc.) necesitan un toque FÍSICO real
-                        // para que el navegador abra el teclado en pantalla; un click simulado
-                        // por JS enfoca el campo pero no dispara el teclado (restricción de
-                        // seguridad de los navegadores contra popups de teclado no solicitados).
                         var esCampoDeTexto = (target.tagName === 'INPUT' &&
                                 ['text','search','email','tel','password','url','number'].indexOf((target.type || 'text').toLowerCase()) !== -1) ||
                             target.tagName === 'TEXTAREA' ||
                             target.isContentEditable;
 
                         if (esCampoDeTexto && window.AndroidBridge) {
-                            window.AndroidBridge.tapAt(cx, cy);
+                            window.AndroidBridge.tapAt(cx, cy, zoomActual());
                         } else {
                             var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
                             target.dispatchEvent(new MouseEvent('mousedown', opts));
@@ -979,11 +937,7 @@ class MainActivity : AppCompatActivity() {
                             target.dispatchEvent(new MouseEvent('click', opts));
                         }
                     } else if (window.AndroidBridge) {
-                        // Sin ancestro clicable identificable: probablemente es contenido
-                        // dibujado dentro de un iframe cross-origin que no detectamos como
-                        // tal directamente (a veces el iframe está debajo de una capa
-                        // transparente). Toque real como último recurso.
-                        window.AndroidBridge.tapAt(cx, cy);
+                        window.AndroidBridge.tapAt(cx, cy, zoomActual());
                     }
 
                     var videos = document.querySelectorAll('video');
@@ -1178,12 +1132,6 @@ class MainActivity : AppCompatActivity() {
                                 ifr.contentWindow.postMessage(JSON.stringify({type:'play'}), '*');
                             }
 
-                            // Respaldo: el postMessage solo funciona si el reproductor de adentro
-                            // lo escucha. Muchos NO lo hacen y solo reaccionan a un click/touch real
-                            // sobre su botón de play. Como JS no puede "ver" adentro de un iframe de
-                            // otro dominio, le pedimos a Android un toque físico real sobre el centro
-                            // del iframe (una sola vez por iframe, con un pequeño retraso para no
-                            // pausar un video que ya esté reproduciéndose).
                             if (!ifr._autoTapIntentado) {
                                 var r = ifr.getBoundingClientRect();
                                 if (r.width > 100 && r.height > 100) {
@@ -1192,7 +1140,7 @@ class MainActivity : AppCompatActivity() {
                                     var cy2 = r.top + r.height / 2;
                                     setTimeout(function(x, y) {
                                         return function() {
-                                            if (window.AndroidBridge) window.AndroidBridge.tapAt(x, y);
+                                            if (window.AndroidBridge) window.AndroidBridge.tapAt(x, y, window.__zoomTV || 1);
                                         };
                                     }(cx2, cy2), 1400);
                                 }
