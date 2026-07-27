@@ -6,7 +6,6 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -415,14 +414,13 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
-                inyectarCSSAntiOverflow()
                 inyectarBloqueoAds()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
                 inyectarAjusteDeAnchoHorizontal()
-                inyectarAjusteReproductor()
                 inyectarCorreccionDeBarrasConScroll()
+                inyectarAjusteReproductor()
                 webView.requestFocus()
             }
 
@@ -536,27 +534,17 @@ class MainActivity : AppCompatActivity() {
                 }
                 customView = view
                 customViewCallback = callback
-
-                val params = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                view?.layoutParams = params
-                fullscreenContainer.addView(view, params)
+                fullscreenContainer.addView(view)
                 fullscreenContainer.visibility = View.VISIBLE
                 webView.visibility = View.GONE
-                activarPantallaCompleta()
             }
 
             override fun onHideCustomView() {
                 fullscreenContainer.visibility = View.GONE
-                if (customView != null) {
-                    fullscreenContainer.removeView(customView)
-                }
+                fullscreenContainer.removeView(customView)
                 customView = null
                 webView.visibility = View.VISIBLE
                 customViewCallback?.onCustomViewHidden()
-                activarPantallaCompleta()
             }
 
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -574,26 +562,6 @@ class MainActivity : AppCompatActivity() {
                 return false
             }
         }
-    }
-
-    private fun inyectarCSSAntiOverflow() {
-        val js = """
-            (function() {
-                if (window.__antiOverflowInstalado) return;
-                window.__antiOverflowInstalado = true;
-
-                var s = document.createElement('style');
-                s.id = '__anti_overflow';
-                s.textContent = 'html,body{overflow-x:hidden!important;width:100%!important;max-width:100vw!important;}' +
-                    '*:not(#__tv_cursor):not(#__tv_cursor *){max-width:100vw!important;box-sizing:border-box!important;}' +
-                    'video{max-width:100%!important;width:100%!important;height:auto!important;}' +
-                    'iframe{max-width:100%!important;width:100%!important;}' +
-                    '.video-container,.player-container,#player,[class*="player"],[class*="video"]{max-width:100vw!important;width:100%!important;overflow-x:hidden!important;}' +
-                    '[style*="width:"][style*="position: fixed"]:not([id="__tv_cursor"]),[style*="width:"][style*="position:fixed"]:not([id="__tv_cursor"]){width:100vw!important;height:auto!important;}';
-                document.head.appendChild(s);
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
     }
 
     private fun inyectarBloqueoAds() {
@@ -762,18 +730,39 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    // Hookea history.pushState / replaceState / popstate para reportar cada cambio de
-    // URL a Android. Necesario porque muchos sitios de una sola página navegan con
-    // replaceState() y eso NO queda registrado en el historial nativo del WebView.
-    // El sitio no está diseñado para el ancho de un TV y su contenido puede ser más ancho
-    // que la pantalla, dejando botones/elementos fuera de vista a los lados. Esto mide el
-    // ancho real del contenido y, si es más ancho que la pantalla, lo escala hacia abajo
-    // (proporcionalmente, sin deformar) para que quepa exacto de borde a borde en horizontal.
-    // El alto puede quedar más largo (con scroll vertical), que es aceptable.
-    // Algunas franjas dentro de la página (como la lista de "Servidor: Externo, Spanish
-    // Main, ..." que aparece sobre el reproductor) tienen su PROPIO scroll horizontal
-    // interno, independiente del ancho general de la página. Esto los detecta y hace que
-    // sus elementos se acomoden en varias filas en vez de requerir mover una barra.
+    private fun inyectarSeguimientoDeHistorial() {
+        val js = """
+            (function() {
+                if (window.__historialInstalado) return;
+                window.__historialInstalado = true;
+
+                function reportar() {
+                    if (window.HistorialBridge) {
+                        window.HistorialBridge.reportarUrl(location.href);
+                    }
+                }
+
+                var origPush = history.pushState;
+                history.pushState = function() {
+                    origPush.apply(history, arguments);
+                    reportar();
+                };
+
+                var origReplace = history.replaceState;
+                history.replaceState = function() {
+                    origReplace.apply(history, arguments);
+                    reportar();
+                };
+
+                window.addEventListener('popstate', reportar);
+                window.addEventListener('hashchange', reportar);
+
+                reportar();
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
     private fun inyectarCorreccionDeBarrasConScroll() {
         val js = """
             (function() {
@@ -872,8 +861,6 @@ class MainActivity : AppCompatActivity() {
                     });
                 }
 
-                window.__ajusteEscalaForzar = solicitarAjuste;
-
                 solicitarAjuste();
                 window.addEventListener('resize', solicitarAjuste);
 
@@ -892,140 +879,96 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    // Cuando el reproductor arranca suele inyectar iframes/contenedores con ancho fijo
-    // (640px, 1280px, etc.) y la pagina se desborda horizontalmente. Este script fuerza
-    // video/iframe/player al 100% del viewport y re-dispara el escalado al reproducir.
     private fun inyectarAjusteReproductor() {
         val js = """
             (function() {
                 if (window.__ajusteReproductorInstalado) return;
                 window.__ajusteReproductorInstalado = true;
 
-                var selectores = 'video, iframe, embed, object, ' +
-                    '.video-container, .player-container, .player-wrap, .player-wrapper, ' +
-                    '#player, #video-player, #movie-player, ' +
-                    '[class*="player"], [class*="video-player"], [class*="movie-player"], ' +
-                    '.jwplayer, .jw-reset, .vjs-player, .plyr, .plyr__video-wrapper, ' +
-                    '.embed-responsive, .ratio, [class*="reproductor"]';
+                var ajustando = false;
 
-                var css = document.createElement('style');
-                css.id = '__manglar_player_fit';
-                css.textContent = selectores +
-                    '{max-width:100vw!important;width:100%!important;box-sizing:border-box!important;}' +
-                    'html,body{overflow-x:hidden!important;max-width:100vw!important;}' +
-                    'iframe{max-width:100%!important;width:100%!important;height:auto!important;}';
-                document.head.appendChild(css);
+                function ajustarReproductor() {
+                    try {
+                        var iframes = document.querySelectorAll('iframe');
+                        for (var i = 0; i < iframes.length; i++) {
+                            var ifr = iframes[i];
+                            if (ifr._reproductorAjustado) continue;
+                            
+                            var src = (ifr.src || '').toLowerCase();
+                            var esReproductor = src.indexOf('vimeo') !== -1 || 
+                                src.indexOf('vidhide') !== -1 || 
+                                src.indexOf('streamwish') !== -1 || 
+                                src.indexOf('voe') !== -1 ||
+                                src.indexOf('player') !== -1;
+                            
+                            if (esReproductor) {
+                                ifr._reproductorAjustado = true;
+                                ifr.style.width = '100%';
+                                ifr.style.height = 'auto';
+                                ifr.style.minHeight = '400px';
+                                ifr.style.display = 'block';
+                                ifr.style.maxWidth = '100vw';
+                                if (ifr.parentNode) {
+                                    ifr.parentNode.style.width = '100%';
+                                    ifr.parentNode.style.overflowX = 'hidden';
+                                }
+                            }
+                        }
 
-                var debounce = null;
-                function forzarAjuste() {
-                    if (debounce) clearTimeout(debounce);
-                    debounce = setTimeout(function() {
-                        try {
-                            var vw = window.innerWidth;
-                            document.querySelectorAll(selectores).forEach(function(el) {
-                                if (el.id === '__tv_cursor') return;
-                                var ancho = Math.max(el.scrollWidth, el.getBoundingClientRect().width);
-                                if (ancho > vw + 2) {
-                                    el.style.maxWidth = '100vw';
-                                    el.style.width = '100%';
-                                    el.style.marginLeft = '0';
-                                    el.style.marginRight = '0';
-                                    el.style.left = '0';
-                                    el.style.right = '0';
-                                    if (el.tagName === 'IFRAME') {
-                                        el.style.aspectRatio = '16 / 9';
-                                        el.style.minHeight = '180px';
-                                    }
-                                }
-                                var parent = el.parentElement;
-                                for (var p = 0; p < 4 && parent; p++) {
-                                    if (parent.scrollWidth > vw + 2) {
-                                        parent.style.maxWidth = '100vw';
-                                        parent.style.width = '100%';
-                                        parent.style.overflowX = 'hidden';
-                                    }
-                                    parent = parent.parentElement;
-                                }
-                            });
-                            if (window.__ajusteEscalaForzar) window.__ajusteEscalaForzar();
-                        } catch(e) {}
-                    }, 80);
+                        var videos = document.querySelectorAll('video');
+                        for (var i = 0; i < videos.length; i++) {
+                            var v = videos[i];
+                            if (v._videoAjustado) continue;
+                            v._videoAjustado = true;
+                            v.style.width = '100%';
+                            v.style.height = 'auto';
+                            v.style.display = 'block';
+                            v.style.maxWidth = '100vw';
+                            if (v.parentNode) {
+                                v.parentNode.style.width = '100%';
+                                v.parentNode.style.overflowX = 'hidden';
+                            }
+                        }
+
+                        var playerContainers = document.querySelectorAll(
+                            '[class*="player"], [class*="video"], [id*="player"], [id*="video"], ' +
+                            '.video-container, .player-container, #player'
+                        );
+                        for (var i = 0; i < playerContainers.length; i++) {
+                            var container = playerContainers[i];
+                            if (container._containerAjustado) continue;
+                            container._containerAjustado = true;
+                            container.style.width = '100%';
+                            container.style.maxWidth = '100vw';
+                            container.style.overflowX = 'hidden';
+                            container.style.overflowY = 'auto';
+                        }
+                    } catch(e) {}
                 }
 
-                function engancharVideos() {
-                    document.querySelectorAll('video').forEach(function(v) {
-                        if (v._manglarFit) return;
-                        v._manglarFit = true;
-                        ['play','loadedmetadata','loadeddata','canplay','resize'].forEach(function(ev) {
-                            v.addEventListener(ev, forzarAjuste);
-                        });
+                function solicitarAjuste() {
+                    if (ajustando) return;
+                    ajustando = true;
+                    requestAnimationFrame(function() {
+                        ajustarReproductor();
+                        ajustando = false;
                     });
                 }
 
-                function engancharIframes() {
-                    document.querySelectorAll('iframe').forEach(function(f) {
-                        if (f._manglarFit) return;
-                        f._manglarFit = true;
-                        f.addEventListener('load', forzarAjuste);
-                    });
-                }
+                solicitarAjuste();
 
-                function revisar() {
-                    engancharVideos();
-                    engancharIframes();
-                    forzarAjuste();
-                }
-
-                document.addEventListener('fullscreenchange', forzarAjuste);
-                document.addEventListener('webkitfullscreenchange', forzarAjuste);
-
-                var obs = new MutationObserver(revisar);
-                obs.observe(document.body || document.documentElement, {
+                var observer = new MutationObserver(solicitarAjuste);
+                observer.observe(document.body || document.documentElement, {
                     childList: true,
-                    subtree: true,
-                    attributes: true,
-                    attributeFilter: ['style', 'class', 'width', 'height']
+                    subtree: true
                 });
 
-                revisar();
-                setTimeout(revisar, 300);
-                setTimeout(revisar, 800);
-                setTimeout(revisar, 1500);
-                setTimeout(revisar, 3000);
-                setInterval(revisar, 2500);
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
-
-    private fun inyectarSeguimientoDeHistorial() {
-        val js = """
-            (function() {
-                if (window.__historialInstalado) return;
-                window.__historialInstalado = true;
-
-                function reportar() {
-                    if (window.HistorialBridge) {
-                        window.HistorialBridge.reportarUrl(location.href);
-                    }
-                }
-
-                var origPush = history.pushState;
-                history.pushState = function() {
-                    origPush.apply(history, arguments);
-                    reportar();
-                };
-
-                var origReplace = history.replaceState;
-                history.replaceState = function() {
-                    origReplace.apply(history, arguments);
-                    reportar();
-                };
-
-                window.addEventListener('popstate', reportar);
-                window.addEventListener('hashchange', reportar);
-
-                reportar();
+                setTimeout(solicitarAjuste, 300);
+                setTimeout(solicitarAjuste, 800);
+                setTimeout(solicitarAjuste, 1500);
+                setTimeout(solicitarAjuste, 2500);
+                setTimeout(solicitarAjuste, 4000);
+                setInterval(solicitarAjuste, 3000);
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
