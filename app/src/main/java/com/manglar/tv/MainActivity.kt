@@ -260,11 +260,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Enter/OK agresivo: DPAD_CENTER, Enter y Numpad Enter.
-        if (code == KeyEvent.KEYCODE_DPAD_CENTER ||
-            code == KeyEvent.KEYCODE_ENTER ||
-            code == KeyEvent.KEYCODE_NUMPAD_ENTER
-        ) {
+        // FIX: Enter/OK llama a __tvNav.click() (click real bajo el cursor).
+        if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
                 return true
@@ -418,8 +415,6 @@ class MainActivity : AppCompatActivity() {
                 progressBar.visibility = View.GONE
                 inyectarCSSAntiOverflow()
                 inyectarBloqueoAds()
-                // Zoom 80% vía viewport meta (antes de navegación TV para que el cursor calcule bien).
-                inyectarViewportZoom()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
@@ -594,29 +589,6 @@ class MainActivity : AppCompatActivity() {
                     '.video-container,.player-container,#player,[class*="player"],[class*="video"]{max-width:100vw!important;width:100%!important;overflow-x:hidden!important;}' +
                     '[style*="width:"][style*="position: fixed"]:not([id="__tv_cursor"]),[style*="width:"][style*="position:fixed"]:not([id="__tv_cursor"]){width:100vw!important;height:auto!important;}';
                 document.head.appendChild(s);
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
-
-    // Zoom fijo 80% mediante viewport meta tag (initial-scale=0.8).
-    // No usa CSS zoom ni setInitialScale del WebView: eso desalinea el cursor virtual
-    // con elementFromPoint(). El meta viewport sí forma parte del sistema CSS del layout.
-    private fun inyectarViewportZoom() {
-        val js = """
-            (function() {
-                if (window.__viewportZoomInstalado) return;
-                window.__viewportZoomInstalado = true;
-
-                var contenido = 'width=device-width, initial-scale=0.8, minimum-scale=0.8, maximum-scale=0.8, user-scalable=no';
-
-                var meta = document.querySelector('meta[name="viewport"]');
-                if (!meta) {
-                    meta = document.createElement('meta');
-                    meta.name = 'viewport';
-                    document.head.appendChild(meta);
-                }
-                meta.setAttribute('content', contenido);
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
@@ -1110,103 +1082,57 @@ class MainActivity : AppCompatActivity() {
                     if (timers[dir]) { clearInterval(timers[dir]); timers[dir] = null; }
                 }
 
-                function esClicable(el) {
-                    if (!el || el === document.body || el === document.documentElement) return false;
-                    var tag = el.tagName;
-                    if (['A','BUTTON','INPUT','SELECT','TEXTAREA','LABEL','SUMMARY','DETAILS','LI','TD','TH'].indexOf(tag) !== -1) return true;
-                    var role = el.getAttribute('role');
-                    if (role && ['button','link','tab','menuitem','option','checkbox','radio','switch','listitem','treeitem'].indexOf(role) !== -1) return true;
-                    if (el.onclick || el.getAttribute('onclick') || el.getAttribute('ng-click') ||
-                        el.getAttribute('@click') || el.getAttribute('v-on:click') || el.hasAttribute('href')) return true;
-                    var tab = el.getAttribute('tabindex');
-                    if (tab !== null && parseInt(tab, 10) >= 0) return true;
-                    try {
-                        var st = window.getComputedStyle(el);
-                        if (st.cursor === 'pointer') return true;
-                    } catch(e) {}
-                    var cls = (el.className || '').toString().toLowerCase();
-                    var id = (el.id || '').toLowerCase();
-                    if (/btn|button|click|link|card|item|tile|poster|thumb|movie|film|serie|server|source|opt|tab|menu|nav|play|select|choice|option|chip|tag|badge|pill|row|col|grid|list|entry|cover|image|img|wrap|box|panel|block|section|header|footer|sidebar|dropdown|toggle|switch|checkbox|radio|slider|swiper|carousel|modal|popup|dialog|close|open|more|load|view|watch|ver|pelicula|peliculas|genero|category|categoria|search|filter|sort|lang|idioma|spanish|latino|main|externo|stream|player|video|episode|temporada|season/.test(cls + ' ' + id)) return true;
-                    if (el.dataset && (el.dataset.href || el.dataset.url || el.dataset.link || el.dataset.action || el.dataset.click)) return true;
-                    return false;
-                }
-
-                function dispararEventos(el, x, y) {
-                    if (!el) return;
-                    var opts = {bubbles: true, cancelable: true, clientX: x, clientY: y, view: window};
-                    try { el.focus({preventScroll: true}); } catch(e) {}
-                    try { if (typeof el.click === 'function') el.click(); } catch(e) {}
-                    var tipos = ['pointerdown','mousedown','pointerup','mouseup','click'];
-                    for (var t = 0; t < tipos.length; t++) {
-                        try {
-                            var Ev = tipos[t].indexOf('pointer') === 0 ? PointerEvent : MouseEvent;
-                            el.dispatchEvent(new Ev(tipos[t], opts));
-                        } catch(e) {}
-                    }
-                    try {
-                        el.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true}));
-                        el.dispatchEvent(new KeyboardEvent('keyup', {key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true}));
-                    } catch(e) {}
-                }
-
                 function doClick() {
                     cursor.style.display = 'none';
                     var el = document.elementFromPoint(cx, cy);
                     cursor.style.display = '';
-                    if (!el || el.id === '__tv_cursor') {
-                        if (window.AndroidBridge) window.AndroidBridge.tapAt(cx, cy);
+                    if (!el) return;
+
+                    if (el.tagName === 'IFRAME') {
+                        if (window.AndroidBridge) {
+                            window.AndroidBridge.tapAt(cx, cy);
+                        }
                         return;
                     }
 
-                    // Siempre toque físico real primero: funciona en iframes, overlays y divs sin handler JS.
-                    if (window.AndroidBridge) {
-                        window.AndroidBridge.tapAt(cx, cy);
-                    }
-
-                    if (el.tagName === 'IFRAME') return;
-
-                    // Cadena de ancestros: dispara en el más específico clicable y también en el elemento exacto.
-                    var cadena = [];
+                    var target = null;
                     var c = el;
-                    for (var i = 0; i < 25 && c && c !== document.body && c !== document.documentElement; i++) {
-                        cadena.push(c);
+                    for (var i = 0; i < 10; i++) {
+                        if (!c || c === document.body || c === document.documentElement) break;
+                        if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
+                            c.tagName === 'SELECT' || c.tagName === 'TEXTAREA' ||
+                            c.getAttribute('role') === 'button' || c.getAttribute('role') === 'link' ||
+                            c.getAttribute('role') === 'tab' || c.getAttribute('role') === 'menuitem' ||
+                            c.onclick || window.getComputedStyle(c).cursor === 'pointer') {
+                            target = c;
+                            break;
+                        }
                         c = c.parentElement;
                     }
 
-                    var clicado = false;
-                    for (var j = 0; j < cadena.length; j++) {
-                        if (esClicable(cadena[j])) {
-                            dispararEventos(cadena[j], cx, cy);
-                            clicado = true;
-                            break;
-                        }
+                    if (!target && el.closest) {
+                        try {
+                            target = el.closest('a,button,[role="button"],[role="link"],[onclick]');
+                        } catch(e) {}
                     }
 
-                    // closest() atrapa wrappers tipo div > a > img que elementFromPoint no asocia bien.
-                    try {
-                        if (el.closest) {
-                            var cercano = el.closest('a,button,[role="button"],[role="link"],[onclick],[tabindex],[class*="btn"],[class*="card"],[class*="item"],[class*="poster"],[class*="thumb"],[class*="server"],[class*="play"]');
-                            if (cercano) {
-                                dispararEventos(cercano, cx, cy);
-                                clicado = true;
-                            }
-                        }
-                    } catch(e) {}
+                    if (target) {
+                        var esCampoDeTexto = (target.tagName === 'INPUT' &&
+                                ['text','search','email','tel','password','url','number'].indexOf((target.type || 'text').toLowerCase()) !== -1) ||
+                            target.tagName === 'TEXTAREA' ||
+                            target.isContentEditable;
 
-                    // Sin ancestro obvio: dispara en el elemento bajo el cursor y sube 5 niveles.
-                    if (!clicado) {
-                        dispararEventos(el, cx, cy);
-                        for (var k = 1; k <= 5 && k < cadena.length; k++) {
-                            dispararEventos(cadena[k], cx, cy);
+                        if (esCampoDeTexto && window.AndroidBridge) {
+                            window.AndroidBridge.tapAt(cx, cy);
+                        } else {
+                            try { if (typeof target.click === 'function') target.click(); } catch(e) {}
+                            var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
+                            target.dispatchEvent(new MouseEvent('mousedown', opts));
+                            target.dispatchEvent(new MouseEvent('mouseup', opts));
+                            target.dispatchEvent(new MouseEvent('click', opts));
                         }
-                        // Segundo toque físico retardado por si había overlay transparente encima.
-                        setTimeout(function(x, y) {
-                            return function() {
-                                if (window.AndroidBridge) window.AndroidBridge.tapAt(x, y);
-                            };
-                        }(cx, cy), 150);
-                    } else {
-                        dispararEventos(el, cx, cy);
+                    } else if (window.AndroidBridge) {
+                        window.AndroidBridge.tapAt(cx, cy);
                     }
 
                     var videos = document.querySelectorAll('video');
