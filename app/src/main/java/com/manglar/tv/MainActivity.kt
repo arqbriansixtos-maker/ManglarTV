@@ -415,6 +415,7 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
                 inyectarBloqueoAds()
+                inyectarCssAntiOverflow()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
@@ -726,6 +727,39 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
 
+        webView.evaluateJavascript(js, null)
+    }
+
+    // Capa de seguridad "de fuerza bruta": además del escalado proporcional y la
+    // corrección de franjas con scroll propio, esto impone un límite duro de CSS
+    // para que NINGÚN elemento pueda ser más ancho que la pantalla, sin importar
+    // qué patrón específico (ancho fijo, flex sin wrap, etc.) lo esté causando.
+    private fun inyectarCssAntiOverflow() {
+        val js = """
+            (function() {
+                if (window.__cssAntiOverflowInstalado) return;
+                window.__cssAntiOverflowInstalado = true;
+
+                var style = document.createElement('style');
+                style.id = '__manglar_anti_overflow';
+                style.textContent = `
+                    html, body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        max-width: 100vw !important;
+                        overflow-x: hidden !important;
+                    }
+                    * {
+                        max-width: 100vw !important;
+                        box-sizing: border-box !important;
+                    }
+                    iframe, video, img, canvas, table {
+                        max-width: 100% !important;
+                    }
+                `;
+                document.head.appendChild(style);
+            })();
+        """.trimIndent()
         webView.evaluateJavascript(js, null)
     }
 
