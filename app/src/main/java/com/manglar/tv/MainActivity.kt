@@ -6,7 +6,6 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -260,7 +259,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // FIX: Enter/OK llama a __tvNav.click() (click real bajo el cursor).
+        // FIX: antes este bloque solo hacía .focus() sobre el elemento bajo el cursor
+        // y nunca llamaba a window.__tvNav.click() (la función que sí dispara el click real).
+        // Por eso el cursor se movía pero OK/Enter no hacía nada.
         if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
@@ -413,13 +414,11 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
-                inyectarCSSAntiOverflow()
                 inyectarBloqueoAds()
+                inyectarZoomTV()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
-                inyectarAjusteDeAnchoHorizontal()
-                inyectarAjusteReproductor()
                 inyectarCorreccionDeBarrasConScroll()
                 webView.requestFocus()
             }
@@ -534,27 +533,17 @@ class MainActivity : AppCompatActivity() {
                 }
                 customView = view
                 customViewCallback = callback
-
-                val params = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                view?.layoutParams = params
-                fullscreenContainer.addView(view, params)
+                fullscreenContainer.addView(view)
                 fullscreenContainer.visibility = View.VISIBLE
                 webView.visibility = View.GONE
-                activarPantallaCompleta()
             }
 
             override fun onHideCustomView() {
                 fullscreenContainer.visibility = View.GONE
-                if (customView != null) {
-                    fullscreenContainer.removeView(customView)
-                }
+                fullscreenContainer.removeView(customView)
                 customView = null
                 webView.visibility = View.VISIBLE
                 customViewCallback?.onCustomViewHidden()
-                activarPantallaCompleta()
             }
 
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -572,26 +561,6 @@ class MainActivity : AppCompatActivity() {
                 return false
             }
         }
-    }
-
-    private fun inyectarCSSAntiOverflow() {
-        val js = """
-            (function() {
-                if (window.__antiOverflowInstalado) return;
-                window.__antiOverflowInstalado = true;
-
-                var s = document.createElement('style');
-                s.id = '__anti_overflow';
-                s.textContent = 'html,body{overflow-x:hidden!important;width:100%!important;max-width:100vw!important;}' +
-                    '*:not(#__tv_cursor):not(#__tv_cursor *){max-width:100vw!important;box-sizing:border-box!important;}' +
-                    'video{max-width:100%!important;width:100%!important;height:auto!important;}' +
-                    'iframe{max-width:100%!important;width:100%!important;}' +
-                    '.video-container,.player-container,#player,[class*="player"],[class*="video"]{max-width:100vw!important;width:100%!important;overflow-x:hidden!important;}' +
-                    '[style*="width:"][style*="position: fixed"]:not([id="__tv_cursor"]),[style*="width:"][style*="position:fixed"]:not([id="__tv_cursor"]){width:100vw!important;height:auto!important;}';
-                document.head.appendChild(s);
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
     }
 
     private fun inyectarBloqueoAds() {
@@ -760,14 +729,55 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
+    // Aplica un zoom fijo del 80% a toda la página usando la propiedad CSS `zoom`
+    // (no `transform`). A diferencia de `transform: scale()`, `zoom` SÍ recalcula
+    // el layout real: el scrollWidth/scrollHeight del documento se ajustan de verdad,
+    // así que el scroll (tanto vertical como horizontal) queda coherente con lo que
+    // se ve en pantalla, sin espacios vacíos de sobra ni desajustes.
+    // Los clicks tampoco se desalinean: `zoom` es exactamente el mecanismo que usan
+    // los navegadores para su propio "acercar/alejar", así que elementFromPoint()
+    // y las coordenadas del cursor TV siguen coincidiendo con lo que se ve.
+    private fun inyectarZoomTV() {
+        val js = """
+            (function() {
+                if (window.__zoomInstalado) return;
+                window.__zoomInstalado = true;
+
+                function aplicarZoom() {
+                    try {
+                        document.documentElement.style.zoom = '0.8';
+                    } catch (e) {}
+                }
+
+                aplicarZoom();
+
+                // Algunos sitios SPA reescriben estilos del <html> al navegar;
+                // esto lo vuelve a forzar si eso llega a pasar.
+                var observer = new MutationObserver(function(mutations) {
+                    for (var i = 0; i < mutations.length; i++) {
+                        if (mutations[i].target === document.documentElement &&
+                            mutations[i].attributeName === 'style') {
+                            aplicarZoom();
+                            return;
+                        }
+                    }
+                });
+                observer.observe(document.documentElement, {
+                    attributes: true,
+                    attributeFilter: ['style']
+                });
+
+                setTimeout(aplicarZoom, 500);
+                setTimeout(aplicarZoom, 1500);
+                setTimeout(aplicarZoom, 3000);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
     // Hookea history.pushState / replaceState / popstate para reportar cada cambio de
     // URL a Android. Necesario porque muchos sitios de una sola página navegan con
     // replaceState() y eso NO queda registrado en el historial nativo del WebView.
-    // El sitio no está diseñado para el ancho de un TV y su contenido puede ser más ancho
-    // que la pantalla, dejando botones/elementos fuera de vista a los lados. Esto mide el
-    // ancho real del contenido y, si es más ancho que la pantalla, lo escala hacia abajo
-    // (proporcionalmente, sin deformar) para que quepa exacto de borde a borde en horizontal.
-    // El alto puede quedar más largo (con scroll vertical), que es aceptable.
     // Algunas franjas dentro de la página (como la lista de "Servidor: Externo, Spanish
     // Main, ..." que aparece sobre el reproductor) tienen su PROPIO scroll horizontal
     // interno, independiente del ancho general de la página. Esto los detecta y hace que
@@ -828,169 +838,6 @@ class MainActivity : AppCompatActivity() {
                 setTimeout(solicitarCorreccion, 1500);
                 setTimeout(solicitarCorreccion, 3000);
                 setTimeout(solicitarCorreccion, 6000);
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
-
-    private fun inyectarAjusteDeAnchoHorizontal() {
-        val js = """
-            (function() {
-                if (window.__ajusteEscalaInstalado) return;
-                window.__ajusteEscalaInstalado = true;
-
-                var ajustando = false;
-
-                function ajustarEscala() {
-                    try {
-                        // Reiniciar antes de medir, para no arrastrar una escala previa
-                        // y terminar encogiendo el contenido cada vez más.
-                        document.body.style.transformOrigin = '0 0';
-                        document.body.style.transform = 'none';
-                        document.body.style.width = '';
-                        document.documentElement.style.overflowX = 'hidden';
-
-                        var anchoContenido = document.documentElement.scrollWidth;
-                        var anchoPantalla = window.innerWidth;
-
-                        if (anchoContenido > anchoPantalla + 3) {
-                            var escala = anchoPantalla / anchoContenido;
-                            document.body.style.transform = 'scale(' + escala + ')';
-                            document.body.style.width = anchoContenido + 'px';
-                        }
-                    } catch (e) {}
-                }
-
-                function solicitarAjuste() {
-                    if (ajustando) return;
-                    ajustando = true;
-                    requestAnimationFrame(function() {
-                        ajustarEscala();
-                        ajustando = false;
-                    });
-                }
-
-                window.__ajusteEscalaForzar = solicitarAjuste;
-
-                solicitarAjuste();
-                window.addEventListener('resize', solicitarAjuste);
-
-                var observer = new MutationObserver(solicitarAjuste);
-                observer.observe(document.body || document.documentElement, {
-                    childList: true,
-                    subtree: true
-                });
-
-                setTimeout(solicitarAjuste, 500);
-                setTimeout(solicitarAjuste, 1500);
-                setTimeout(solicitarAjuste, 3000);
-                setTimeout(solicitarAjuste, 6000);
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
-
-    // Cuando el reproductor arranca suele inyectar iframes/contenedores con ancho fijo
-    // (640px, 1280px, etc.) y la pagina se desborda horizontalmente. Este script fuerza
-    // video/iframe/player al 100% del viewport y re-dispara el escalado al reproducir.
-    private fun inyectarAjusteReproductor() {
-        val js = """
-            (function() {
-                if (window.__ajusteReproductorInstalado) return;
-                window.__ajusteReproductorInstalado = true;
-
-                var selectores = 'video, iframe, embed, object, ' +
-                    '.video-container, .player-container, .player-wrap, .player-wrapper, ' +
-                    '#player, #video-player, #movie-player, ' +
-                    '[class*="player"], [class*="video-player"], [class*="movie-player"], ' +
-                    '.jwplayer, .jw-reset, .vjs-player, .plyr, .plyr__video-wrapper, ' +
-                    '.embed-responsive, .ratio, [class*="reproductor"]';
-
-                var css = document.createElement('style');
-                css.id = '__manglar_player_fit';
-                css.textContent = selectores +
-                    '{max-width:100vw!important;width:100%!important;box-sizing:border-box!important;}' +
-                    'html,body{overflow-x:hidden!important;max-width:100vw!important;}' +
-                    'iframe{max-width:100%!important;width:100%!important;height:auto!important;}';
-                document.head.appendChild(css);
-
-                var debounce = null;
-                function forzarAjuste() {
-                    if (debounce) clearTimeout(debounce);
-                    debounce = setTimeout(function() {
-                        try {
-                            var vw = window.innerWidth;
-                            document.querySelectorAll(selectores).forEach(function(el) {
-                                if (el.id === '__tv_cursor') return;
-                                var ancho = Math.max(el.scrollWidth, el.getBoundingClientRect().width);
-                                if (ancho > vw + 2) {
-                                    el.style.maxWidth = '100vw';
-                                    el.style.width = '100%';
-                                    el.style.marginLeft = '0';
-                                    el.style.marginRight = '0';
-                                    el.style.left = '0';
-                                    el.style.right = '0';
-                                    if (el.tagName === 'IFRAME') {
-                                        el.style.aspectRatio = '16 / 9';
-                                        el.style.minHeight = '180px';
-                                    }
-                                }
-                                var parent = el.parentElement;
-                                for (var p = 0; p < 4 && parent; p++) {
-                                    if (parent.scrollWidth > vw + 2) {
-                                        parent.style.maxWidth = '100vw';
-                                        parent.style.width = '100%';
-                                        parent.style.overflowX = 'hidden';
-                                    }
-                                    parent = parent.parentElement;
-                                }
-                            });
-                            if (window.__ajusteEscalaForzar) window.__ajusteEscalaForzar();
-                        } catch(e) {}
-                    }, 80);
-                }
-
-                function engancharVideos() {
-                    document.querySelectorAll('video').forEach(function(v) {
-                        if (v._manglarFit) return;
-                        v._manglarFit = true;
-                        ['play','loadedmetadata','loadeddata','canplay','resize'].forEach(function(ev) {
-                            v.addEventListener(ev, forzarAjuste);
-                        });
-                    });
-                }
-
-                function engancharIframes() {
-                    document.querySelectorAll('iframe').forEach(function(f) {
-                        if (f._manglarFit) return;
-                        f._manglarFit = true;
-                        f.addEventListener('load', forzarAjuste);
-                    });
-                }
-
-                function revisar() {
-                    engancharVideos();
-                    engancharIframes();
-                    forzarAjuste();
-                }
-
-                document.addEventListener('fullscreenchange', forzarAjuste);
-                document.addEventListener('webkitfullscreenchange', forzarAjuste);
-
-                var obs = new MutationObserver(revisar);
-                obs.observe(document.body || document.documentElement, {
-                    childList: true,
-                    subtree: true,
-                    attributes: true,
-                    attributeFilter: ['style', 'class', 'width', 'height']
-                });
-
-                revisar();
-                setTimeout(revisar, 300);
-                setTimeout(revisar, 800);
-                setTimeout(revisar, 1500);
-                setTimeout(revisar, 3000);
-                setInterval(revisar, 2500);
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
@@ -1088,6 +935,9 @@ class MainActivity : AppCompatActivity() {
                     cursor.style.display = '';
                     if (!el) return;
 
+                    // Si lo que hay bajo el cursor es directamente un IFRAME (reproductor
+                    // externo), el click de JS no puede llegar "adentro" por seguridad del
+                    // navegador. En ese caso usamos un toque real simulado por Android.
                     if (el.tagName === 'IFRAME') {
                         if (window.AndroidBridge) {
                             window.AndroidBridge.tapAt(cx, cy);
@@ -1110,13 +960,11 @@ class MainActivity : AppCompatActivity() {
                         c = c.parentElement;
                     }
 
-                    if (!target && el.closest) {
-                        try {
-                            target = el.closest('a,button,[role="button"],[role="link"],[onclick]');
-                        } catch(e) {}
-                    }
-
                     if (target) {
+                        // Los campos de texto (buscador, etc.) necesitan un toque FÍSICO real
+                        // para que el navegador abra el teclado en pantalla; un click simulado
+                        // por JS enfoca el campo pero no dispara el teclado (restricción de
+                        // seguridad de los navegadores contra popups de teclado no solicitados).
                         var esCampoDeTexto = (target.tagName === 'INPUT' &&
                                 ['text','search','email','tel','password','url','number'].indexOf((target.type || 'text').toLowerCase()) !== -1) ||
                             target.tagName === 'TEXTAREA' ||
@@ -1125,13 +973,16 @@ class MainActivity : AppCompatActivity() {
                         if (esCampoDeTexto && window.AndroidBridge) {
                             window.AndroidBridge.tapAt(cx, cy);
                         } else {
-                            try { if (typeof target.click === 'function') target.click(); } catch(e) {}
                             var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
                             target.dispatchEvent(new MouseEvent('mousedown', opts));
                             target.dispatchEvent(new MouseEvent('mouseup', opts));
                             target.dispatchEvent(new MouseEvent('click', opts));
                         }
                     } else if (window.AndroidBridge) {
+                        // Sin ancestro clicable identificable: probablemente es contenido
+                        // dibujado dentro de un iframe cross-origin que no detectamos como
+                        // tal directamente (a veces el iframe está debajo de una capa
+                        // transparente). Toque real como último recurso.
                         window.AndroidBridge.tapAt(cx, cy);
                     }
 
