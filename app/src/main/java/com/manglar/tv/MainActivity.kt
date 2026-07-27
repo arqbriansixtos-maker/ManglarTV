@@ -398,15 +398,6 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.setSupportMultipleWindows(false)
 
-        // Zoom nativo del WebView al 80% (no CSS): el motor de renderizado escala la
-        // página completa a nivel nativo, por lo que la traducción de toques/eventos a
-        // coordenadas de pantalla se mantiene correcta (a diferencia de CSS 'zoom' en
-        // documentElement, que rompía elementFromPoint y el D-pad/Enter en WebView).
-        settings.setSupportZoom(true)
-        settings.builtInZoomControls = true
-        settings.displayZoomControls = false
-        webView.setInitialScale(80)
-
         // Puente para simular toques reales cuando el play esté dentro de un iframe externo.
         webView.addJavascriptInterface(PlayerBridge(), "AndroidBridge")
         // Puente para llevar nuestro propio historial de navegación (ver HistorialBridge).
@@ -419,15 +410,14 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 progressBar.visibility = View.VISIBLE
-                // Se reafirma en cada navegación (incluyendo las de tipo SPA con
-                // replaceState) porque el WebView a veces "olvida" el initialScale
-                // al no recargar la página completa.
-                webView.setInitialScale(80)
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
                 inyectarBloqueoAds()
+                // El zoom se inyecta ANTES de la navegación TV, para que el cursor
+                // calcule su posición central ya con el viewport reescalado.
+                inyectarViewportZoom()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
@@ -739,6 +729,37 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
 
+        webView.evaluateJavascript(js, null)
+    }
+
+    // Aplica un zoom fijo del 80% a través del viewport meta tag (initial-scale),
+    // NO mediante CSS 'zoom' ni el zoom nativo del WebView (setInitialScale +
+    // builtInZoomControls). Ambos enfoques anteriores desalineaban el cursor virtual
+    // y hacían fallar el Enter, porque introducían una escala visual "por fuera" del
+    // sistema de coordenadas CSS que usa window.innerWidth/innerHeight y
+    // document.elementFromPoint(). El viewport meta tag, en cambio, SÍ forma parte de
+    // ese sistema: el navegador reajusta el layout completo (viewport) a la escala
+    // indicada, así que window.innerWidth, elementFromPoint y el cursor
+    // position:fixed quedan automáticamente sincronizados entre sí, sin ningún
+    // desfase. Por eso se inyecta ANTES de inyectarNavegacionTV(), para que el
+    // cursor calcule su punto central ya con el viewport final.
+    private fun inyectarViewportZoom() {
+        val js = """
+            (function() {
+                if (window.__viewportZoomInstalado) return;
+                window.__viewportZoomInstalado = true;
+
+                var contenido = 'width=device-width, initial-scale=0.8, minimum-scale=0.8, maximum-scale=0.8, user-scalable=no';
+
+                var meta = document.querySelector('meta[name="viewport"]');
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.name = 'viewport';
+                    document.head.appendChild(meta);
+                }
+                meta.setAttribute('content', contenido);
+            })();
+        """.trimIndent()
         webView.evaluateJavascript(js, null)
     }
 
