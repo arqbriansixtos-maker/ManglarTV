@@ -144,16 +144,27 @@ class MainActivity : AppCompatActivity() {
 
     inner class PlayerBridge {
         @JavascriptInterface
-        fun tapAt(x: Float, y: Float, zoom: Float) {
-            runOnUiThread { simularToqueReal(x, y, zoom) }
+        fun tapAt(x: Float, y: Float, anchoVentanaCss: Float) {
+            runOnUiThread { simularToqueReal(x, y, anchoVentanaCss) }
         }
     }
 
-    private fun simularToqueReal(cssX: Float, cssY: Float, zoom: Float) {
+    private fun simularToqueReal(cssX: Float, cssY: Float, anchoVentanaCss: Float) {
+        // En vez de asumir un factor de zoom fijo (que puede no coincidir con cómo el
+        // motor del WebView traduce coordenadas), medimos la escala REAL comparando el
+        // ancho físico de la vista de Android contra lo que JS reporta como ancho de
+        // página (window.innerWidth). Esa proporción es válida sin importar qué zoom o
+        // escalado esté aplicando la página en ese momento.
+        val anchoWebViewPx = webView.width.toFloat()
         val densidad = resources.displayMetrics.density
-        val factorZoom = if (zoom > 0f) zoom else 1f
-        val x = cssX * densidad * factorZoom
-        val y = cssY * densidad * factorZoom
+        val escala = if (anchoVentanaCss > 0f && anchoWebViewPx > 0f) {
+            anchoWebViewPx / anchoVentanaCss
+        } else {
+            densidad
+        }
+
+        val x = cssX * escala
+        val y = cssY * escala
 
         val downTime = SystemClock.uptimeMillis()
         val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
@@ -848,8 +859,8 @@ class MainActivity : AppCompatActivity() {
                 var cy = window.innerHeight / 2;
                 var timers = {};
 
-                function zoomActual() {
-                    return window.__zoomTV || 1;
+                function anchoVentanaCss() {
+                    return window.innerWidth;
                 }
 
                 var cursor = document.createElement('div');
@@ -902,7 +913,7 @@ class MainActivity : AppCompatActivity() {
 
                     if (el.tagName === 'IFRAME') {
                         if (window.AndroidBridge) {
-                            window.AndroidBridge.tapAt(cx, cy, zoomActual());
+                            window.AndroidBridge.tapAt(cx, cy, anchoVentanaCss());
                         }
                         return;
                     }
@@ -929,7 +940,7 @@ class MainActivity : AppCompatActivity() {
                             target.isContentEditable;
 
                         if (esCampoDeTexto && window.AndroidBridge) {
-                            window.AndroidBridge.tapAt(cx, cy, zoomActual());
+                            window.AndroidBridge.tapAt(cx, cy, anchoVentanaCss());
                         } else {
                             var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
                             target.dispatchEvent(new MouseEvent('mousedown', opts));
@@ -937,7 +948,7 @@ class MainActivity : AppCompatActivity() {
                             target.dispatchEvent(new MouseEvent('click', opts));
                         }
                     } else if (window.AndroidBridge) {
-                        window.AndroidBridge.tapAt(cx, cy, zoomActual());
+                        window.AndroidBridge.tapAt(cx, cy, anchoVentanaCss());
                     }
 
                     var videos = document.querySelectorAll('video');
@@ -1140,7 +1151,7 @@ class MainActivity : AppCompatActivity() {
                                     var cy2 = r.top + r.height / 2;
                                     setTimeout(function(x, y) {
                                         return function() {
-                                            if (window.AndroidBridge) window.AndroidBridge.tapAt(x, y, window.__zoomTV || 1);
+                                            if (window.AndroidBridge) window.AndroidBridge.tapAt(x, y, window.innerWidth);
                                         };
                                     }(cx2, cy2), 1400);
                                 }
