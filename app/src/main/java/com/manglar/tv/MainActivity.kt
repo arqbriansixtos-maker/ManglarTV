@@ -419,6 +419,7 @@ class MainActivity : AppCompatActivity() {
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
                 inyectarAjusteDeAnchoHorizontal()
+                inyectarCorreccionDeBarrasConScroll()
                 webView.requestFocus()
             }
 
@@ -736,6 +737,71 @@ class MainActivity : AppCompatActivity() {
     // ancho real del contenido y, si es más ancho que la pantalla, lo escala hacia abajo
     // (proporcionalmente, sin deformar) para que quepa exacto de borde a borde en horizontal.
     // El alto puede quedar más largo (con scroll vertical), que es aceptable.
+    // Algunas franjas dentro de la página (como la lista de "Servidor: Externo, Spanish
+    // Main, ..." que aparece sobre el reproductor) tienen su PROPIO scroll horizontal
+    // interno, independiente del ancho general de la página. Esto los detecta y hace que
+    // sus elementos se acomoden en varias filas en vez de requerir mover una barra.
+    private fun inyectarCorreccionDeBarrasConScroll() {
+        val js = """
+            (function() {
+                if (window.__correccionBarrasInstalada) return;
+                window.__correccionBarrasInstalada = true;
+
+                var ajustando = false;
+
+                function corregir() {
+                    try {
+                        var candidatos = document.querySelectorAll('body, body *');
+                        for (var i = 0; i < candidatos.length; i++) {
+                            var el = candidatos[i];
+                            if (el._anchoLocalAjustado) continue;
+                            if (el.clientWidth < 50) continue;
+                            if (el.scrollWidth <= el.clientWidth + 3) continue;
+
+                            var estilo = window.getComputedStyle(el);
+                            var desbordaX = estilo.overflowX === 'auto' || estilo.overflowX === 'scroll';
+                            if (!desbordaX) continue;
+
+                            el._anchoLocalAjustado = true;
+
+                            if (estilo.display.indexOf('flex') !== -1) {
+                                el.style.flexWrap = 'wrap';
+                                el.style.overflowX = 'visible';
+                                el.style.overflowY = 'visible';
+                            } else {
+                                el.style.whiteSpace = 'normal';
+                                el.style.overflowX = 'visible';
+                            }
+                        }
+                    } catch (e) {}
+                }
+
+                function solicitarCorreccion() {
+                    if (ajustando) return;
+                    ajustando = true;
+                    requestAnimationFrame(function() {
+                        corregir();
+                        ajustando = false;
+                    });
+                }
+
+                solicitarCorreccion();
+
+                var observer = new MutationObserver(solicitarCorreccion);
+                observer.observe(document.body || document.documentElement, {
+                    childList: true,
+                    subtree: true
+                });
+
+                setTimeout(solicitarCorreccion, 500);
+                setTimeout(solicitarCorreccion, 1500);
+                setTimeout(solicitarCorreccion, 3000);
+                setTimeout(solicitarCorreccion, 6000);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
     private fun inyectarAjusteDeAnchoHorizontal() {
         val js = """
             (function() {
@@ -1189,4 +1255,3 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
-                        
