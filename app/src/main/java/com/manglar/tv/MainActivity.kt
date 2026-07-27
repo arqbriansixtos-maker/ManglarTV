@@ -415,9 +415,6 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
                 inyectarBloqueoAds()
-                // El zoom se inyecta ANTES de la navegación TV, para que el cursor
-                // calcule su posición central ya con el viewport reescalado.
-                inyectarViewportZoom()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
@@ -729,37 +726,6 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
 
-        webView.evaluateJavascript(js, null)
-    }
-
-    // Aplica un zoom fijo del 80% a través del viewport meta tag (initial-scale),
-    // NO mediante CSS 'zoom' ni el zoom nativo del WebView (setInitialScale +
-    // builtInZoomControls). Ambos enfoques anteriores desalineaban el cursor virtual
-    // y hacían fallar el Enter, porque introducían una escala visual "por fuera" del
-    // sistema de coordenadas CSS que usa window.innerWidth/innerHeight y
-    // document.elementFromPoint(). El viewport meta tag, en cambio, SÍ forma parte de
-    // ese sistema: el navegador reajusta el layout completo (viewport) a la escala
-    // indicada, así que window.innerWidth, elementFromPoint y el cursor
-    // position:fixed quedan automáticamente sincronizados entre sí, sin ningún
-    // desfase. Por eso se inyecta ANTES de inyectarNavegacionTV(), para que el
-    // cursor calcule su punto central ya con el viewport final.
-    private fun inyectarViewportZoom() {
-        val js = """
-            (function() {
-                if (window.__viewportZoomInstalado) return;
-                window.__viewportZoomInstalado = true;
-
-                var contenido = 'width=device-width, initial-scale=0.8, minimum-scale=0.8, maximum-scale=0.8, user-scalable=no';
-
-                var meta = document.querySelector('meta[name="viewport"]');
-                if (!meta) {
-                    meta = document.createElement('meta');
-                    meta.name = 'viewport';
-                    document.head.appendChild(meta);
-                }
-                meta.setAttribute('content', contenido);
-            })();
-        """.trimIndent()
         webView.evaluateJavascript(js, null)
     }
 
