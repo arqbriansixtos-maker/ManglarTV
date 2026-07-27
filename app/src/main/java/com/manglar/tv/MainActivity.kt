@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -259,10 +260,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // FIX: antes este bloque solo hacía .focus() sobre el elemento bajo el cursor
-        // y nunca llamaba a window.__tvNav.click() (la función que sí dispara el click real).
-        // Por eso el cursor se movía pero OK/Enter no hacía nada.
-        if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
+        // Enter/OK agresivo: DPAD_CENTER, Enter y Numpad Enter.
+        if (code == KeyEvent.KEYCODE_DPAD_CENTER ||
+            code == KeyEvent.KEYCODE_ENTER ||
+            code == KeyEvent.KEYCODE_NUMPAD_ENTER
+        ) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 webView.evaluateJavascript("window.__tvNav && window.__tvNav.click()", null)
                 return true
@@ -414,11 +416,15 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progressBar.visibility = View.GONE
+                inyectarCSSAntiOverflow()
                 inyectarBloqueoAds()
+                // Zoom 80% vía viewport meta (antes de navegación TV para que el cursor calcule bien).
+                inyectarViewportZoom()
                 inyectarNavegacionTV()
                 inyectarAutoPlay()
                 inyectarSeguimientoDeHistorial()
                 inyectarAjusteDeAnchoHorizontal()
+                inyectarAjusteReproductor()
                 inyectarCorreccionDeBarrasConScroll()
                 webView.requestFocus()
             }
@@ -533,17 +539,27 @@ class MainActivity : AppCompatActivity() {
                 }
                 customView = view
                 customViewCallback = callback
-                fullscreenContainer.addView(view)
+
+                val params = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                view?.layoutParams = params
+                fullscreenContainer.addView(view, params)
                 fullscreenContainer.visibility = View.VISIBLE
                 webView.visibility = View.GONE
+                activarPantallaCompleta()
             }
 
             override fun onHideCustomView() {
                 fullscreenContainer.visibility = View.GONE
-                fullscreenContainer.removeView(customView)
+                if (customView != null) {
+                    fullscreenContainer.removeView(customView)
+                }
                 customView = null
                 webView.visibility = View.VISIBLE
                 customViewCallback?.onCustomViewHidden()
+                activarPantallaCompleta()
             }
 
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -561,6 +577,49 @@ class MainActivity : AppCompatActivity() {
                 return false
             }
         }
+    }
+
+    private fun inyectarCSSAntiOverflow() {
+        val js = """
+            (function() {
+                if (window.__antiOverflowInstalado) return;
+                window.__antiOverflowInstalado = true;
+
+                var s = document.createElement('style');
+                s.id = '__anti_overflow';
+                s.textContent = 'html,body{overflow-x:hidden!important;width:100%!important;max-width:100vw!important;}' +
+                    '*:not(#__tv_cursor):not(#__tv_cursor *){max-width:100vw!important;box-sizing:border-box!important;}' +
+                    'video{max-width:100%!important;width:100%!important;height:auto!important;}' +
+                    'iframe{max-width:100%!important;width:100%!important;}' +
+                    '.video-container,.player-container,#player,[class*="player"],[class*="video"]{max-width:100vw!important;width:100%!important;overflow-x:hidden!important;}' +
+                    '[style*="width:"][style*="position: fixed"]:not([id="__tv_cursor"]),[style*="width:"][style*="position:fixed"]:not([id="__tv_cursor"]){width:100vw!important;height:auto!important;}';
+                document.head.appendChild(s);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
+    // Zoom fijo 80% mediante viewport meta tag (initial-scale=0.8).
+    // No usa CSS zoom ni setInitialScale del WebView: eso desalinea el cursor virtual
+    // con elementFromPoint(). El meta viewport sí forma parte del sistema CSS del layout.
+    private fun inyectarViewportZoom() {
+        val js = """
+            (function() {
+                if (window.__viewportZoomInstalado) return;
+                window.__viewportZoomInstalado = true;
+
+                var contenido = 'width=device-width, initial-scale=0.8, minimum-scale=0.8, maximum-scale=0.8, user-scalable=no';
+
+                var meta = document.querySelector('meta[name="viewport"]');
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.name = 'viewport';
+                    document.head.appendChild(meta);
+                }
+                meta.setAttribute('content', contenido);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
     }
 
     private fun inyectarBloqueoAds() {
@@ -839,6 +898,8 @@ class MainActivity : AppCompatActivity() {
                     });
                 }
 
+                window.__ajusteEscalaForzar = solicitarAjuste;
+
                 solicitarAjuste();
                 window.addEventListener('resize', solicitarAjuste);
 
@@ -852,6 +913,112 @@ class MainActivity : AppCompatActivity() {
                 setTimeout(solicitarAjuste, 1500);
                 setTimeout(solicitarAjuste, 3000);
                 setTimeout(solicitarAjuste, 6000);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
+    // Cuando el reproductor arranca suele inyectar iframes/contenedores con ancho fijo
+    // (640px, 1280px, etc.) y la pagina se desborda horizontalmente. Este script fuerza
+    // video/iframe/player al 100% del viewport y re-dispara el escalado al reproducir.
+    private fun inyectarAjusteReproductor() {
+        val js = """
+            (function() {
+                if (window.__ajusteReproductorInstalado) return;
+                window.__ajusteReproductorInstalado = true;
+
+                var selectores = 'video, iframe, embed, object, ' +
+                    '.video-container, .player-container, .player-wrap, .player-wrapper, ' +
+                    '#player, #video-player, #movie-player, ' +
+                    '[class*="player"], [class*="video-player"], [class*="movie-player"], ' +
+                    '.jwplayer, .jw-reset, .vjs-player, .plyr, .plyr__video-wrapper, ' +
+                    '.embed-responsive, .ratio, [class*="reproductor"]';
+
+                var css = document.createElement('style');
+                css.id = '__manglar_player_fit';
+                css.textContent = selectores +
+                    '{max-width:100vw!important;width:100%!important;box-sizing:border-box!important;}' +
+                    'html,body{overflow-x:hidden!important;max-width:100vw!important;}' +
+                    'iframe{max-width:100%!important;width:100%!important;height:auto!important;}';
+                document.head.appendChild(css);
+
+                var debounce = null;
+                function forzarAjuste() {
+                    if (debounce) clearTimeout(debounce);
+                    debounce = setTimeout(function() {
+                        try {
+                            var vw = window.innerWidth;
+                            document.querySelectorAll(selectores).forEach(function(el) {
+                                if (el.id === '__tv_cursor') return;
+                                var ancho = Math.max(el.scrollWidth, el.getBoundingClientRect().width);
+                                if (ancho > vw + 2) {
+                                    el.style.maxWidth = '100vw';
+                                    el.style.width = '100%';
+                                    el.style.marginLeft = '0';
+                                    el.style.marginRight = '0';
+                                    el.style.left = '0';
+                                    el.style.right = '0';
+                                    if (el.tagName === 'IFRAME') {
+                                        el.style.aspectRatio = '16 / 9';
+                                        el.style.minHeight = '180px';
+                                    }
+                                }
+                                var parent = el.parentElement;
+                                for (var p = 0; p < 4 && parent; p++) {
+                                    if (parent.scrollWidth > vw + 2) {
+                                        parent.style.maxWidth = '100vw';
+                                        parent.style.width = '100%';
+                                        parent.style.overflowX = 'hidden';
+                                    }
+                                    parent = parent.parentElement;
+                                }
+                            });
+                            if (window.__ajusteEscalaForzar) window.__ajusteEscalaForzar();
+                        } catch(e) {}
+                    }, 80);
+                }
+
+                function engancharVideos() {
+                    document.querySelectorAll('video').forEach(function(v) {
+                        if (v._manglarFit) return;
+                        v._manglarFit = true;
+                        ['play','loadedmetadata','loadeddata','canplay','resize'].forEach(function(ev) {
+                            v.addEventListener(ev, forzarAjuste);
+                        });
+                    });
+                }
+
+                function engancharIframes() {
+                    document.querySelectorAll('iframe').forEach(function(f) {
+                        if (f._manglarFit) return;
+                        f._manglarFit = true;
+                        f.addEventListener('load', forzarAjuste);
+                    });
+                }
+
+                function revisar() {
+                    engancharVideos();
+                    engancharIframes();
+                    forzarAjuste();
+                }
+
+                document.addEventListener('fullscreenchange', forzarAjuste);
+                document.addEventListener('webkitfullscreenchange', forzarAjuste);
+
+                var obs = new MutationObserver(revisar);
+                obs.observe(document.body || document.documentElement, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['style', 'class', 'width', 'height']
+                });
+
+                revisar();
+                setTimeout(revisar, 300);
+                setTimeout(revisar, 800);
+                setTimeout(revisar, 1500);
+                setTimeout(revisar, 3000);
+                setInterval(revisar, 2500);
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
@@ -943,61 +1110,103 @@ class MainActivity : AppCompatActivity() {
                     if (timers[dir]) { clearInterval(timers[dir]); timers[dir] = null; }
                 }
 
+                function esClicable(el) {
+                    if (!el || el === document.body || el === document.documentElement) return false;
+                    var tag = el.tagName;
+                    if (['A','BUTTON','INPUT','SELECT','TEXTAREA','LABEL','SUMMARY','DETAILS','LI','TD','TH'].indexOf(tag) !== -1) return true;
+                    var role = el.getAttribute('role');
+                    if (role && ['button','link','tab','menuitem','option','checkbox','radio','switch','listitem','treeitem'].indexOf(role) !== -1) return true;
+                    if (el.onclick || el.getAttribute('onclick') || el.getAttribute('ng-click') ||
+                        el.getAttribute('@click') || el.getAttribute('v-on:click') || el.hasAttribute('href')) return true;
+                    var tab = el.getAttribute('tabindex');
+                    if (tab !== null && parseInt(tab, 10) >= 0) return true;
+                    try {
+                        var st = window.getComputedStyle(el);
+                        if (st.cursor === 'pointer') return true;
+                    } catch(e) {}
+                    var cls = (el.className || '').toString().toLowerCase();
+                    var id = (el.id || '').toLowerCase();
+                    if (/btn|button|click|link|card|item|tile|poster|thumb|movie|film|serie|server|source|opt|tab|menu|nav|play|select|choice|option|chip|tag|badge|pill|row|col|grid|list|entry|cover|image|img|wrap|box|panel|block|section|header|footer|sidebar|dropdown|toggle|switch|checkbox|radio|slider|swiper|carousel|modal|popup|dialog|close|open|more|load|view|watch|ver|pelicula|peliculas|genero|category|categoria|search|filter|sort|lang|idioma|spanish|latino|main|externo|stream|player|video|episode|temporada|season/.test(cls + ' ' + id)) return true;
+                    if (el.dataset && (el.dataset.href || el.dataset.url || el.dataset.link || el.dataset.action || el.dataset.click)) return true;
+                    return false;
+                }
+
+                function dispararEventos(el, x, y) {
+                    if (!el) return;
+                    var opts = {bubbles: true, cancelable: true, clientX: x, clientY: y, view: window};
+                    try { el.focus({preventScroll: true}); } catch(e) {}
+                    try { if (typeof el.click === 'function') el.click(); } catch(e) {}
+                    var tipos = ['pointerdown','mousedown','pointerup','mouseup','click'];
+                    for (var t = 0; t < tipos.length; t++) {
+                        try {
+                            var Ev = tipos[t].indexOf('pointer') === 0 ? PointerEvent : MouseEvent;
+                            el.dispatchEvent(new Ev(tipos[t], opts));
+                        } catch(e) {}
+                    }
+                    try {
+                        el.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true}));
+                        el.dispatchEvent(new KeyboardEvent('keyup', {key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true}));
+                    } catch(e) {}
+                }
+
                 function doClick() {
                     cursor.style.display = 'none';
                     var el = document.elementFromPoint(cx, cy);
                     cursor.style.display = '';
-                    if (!el) return;
-
-                    // Si lo que hay bajo el cursor es directamente un IFRAME (reproductor
-                    // externo), el click de JS no puede llegar "adentro" por seguridad del
-                    // navegador. En ese caso usamos un toque real simulado por Android.
-                    if (el.tagName === 'IFRAME') {
-                        if (window.AndroidBridge) {
-                            window.AndroidBridge.tapAt(cx, cy);
-                        }
+                    if (!el || el.id === '__tv_cursor') {
+                        if (window.AndroidBridge) window.AndroidBridge.tapAt(cx, cy);
                         return;
                     }
 
-                    var target = null;
+                    // Siempre toque físico real primero: funciona en iframes, overlays y divs sin handler JS.
+                    if (window.AndroidBridge) {
+                        window.AndroidBridge.tapAt(cx, cy);
+                    }
+
+                    if (el.tagName === 'IFRAME') return;
+
+                    // Cadena de ancestros: dispara en el más específico clicable y también en el elemento exacto.
+                    var cadena = [];
                     var c = el;
-                    for (var i = 0; i < 10; i++) {
-                        if (!c || c === document.body || c === document.documentElement) break;
-                        if (c.tagName === 'A' || c.tagName === 'BUTTON' || c.tagName === 'INPUT' ||
-                            c.tagName === 'SELECT' || c.tagName === 'TEXTAREA' ||
-                            c.getAttribute('role') === 'button' || c.getAttribute('role') === 'link' ||
-                            c.getAttribute('role') === 'tab' || c.getAttribute('role') === 'menuitem' ||
-                            c.onclick || window.getComputedStyle(c).cursor === 'pointer') {
-                            target = c;
-                            break;
-                        }
+                    for (var i = 0; i < 25 && c && c !== document.body && c !== document.documentElement; i++) {
+                        cadena.push(c);
                         c = c.parentElement;
                     }
 
-                    if (target) {
-                        // Los campos de texto (buscador, etc.) necesitan un toque FÍSICO real
-                        // para que el navegador abra el teclado en pantalla; un click simulado
-                        // por JS enfoca el campo pero no dispara el teclado (restricción de
-                        // seguridad de los navegadores contra popups de teclado no solicitados).
-                        var esCampoDeTexto = (target.tagName === 'INPUT' &&
-                                ['text','search','email','tel','password','url','number'].indexOf((target.type || 'text').toLowerCase()) !== -1) ||
-                            target.tagName === 'TEXTAREA' ||
-                            target.isContentEditable;
-
-                        if (esCampoDeTexto && window.AndroidBridge) {
-                            window.AndroidBridge.tapAt(cx, cy);
-                        } else {
-                            var opts = {bubbles: true, clientX: cx, clientY: cy, cancelable: true};
-                            target.dispatchEvent(new MouseEvent('mousedown', opts));
-                            target.dispatchEvent(new MouseEvent('mouseup', opts));
-                            target.dispatchEvent(new MouseEvent('click', opts));
+                    var clicado = false;
+                    for (var j = 0; j < cadena.length; j++) {
+                        if (esClicable(cadena[j])) {
+                            dispararEventos(cadena[j], cx, cy);
+                            clicado = true;
+                            break;
                         }
-                    } else if (window.AndroidBridge) {
-                        // Sin ancestro clicable identificable: probablemente es contenido
-                        // dibujado dentro de un iframe cross-origin que no detectamos como
-                        // tal directamente (a veces el iframe está debajo de una capa
-                        // transparente). Toque real como último recurso.
-                        window.AndroidBridge.tapAt(cx, cy);
+                    }
+
+                    // closest() atrapa wrappers tipo div > a > img que elementFromPoint no asocia bien.
+                    try {
+                        if (el.closest) {
+                            var cercano = el.closest('a,button,[role="button"],[role="link"],[onclick],[tabindex],[class*="btn"],[class*="card"],[class*="item"],[class*="poster"],[class*="thumb"],[class*="server"],[class*="play"]');
+                            if (cercano) {
+                                dispararEventos(cercano, cx, cy);
+                                clicado = true;
+                            }
+                        }
+                    } catch(e) {}
+
+                    // Sin ancestro obvio: dispara en el elemento bajo el cursor y sube 5 niveles.
+                    if (!clicado) {
+                        dispararEventos(el, cx, cy);
+                        for (var k = 1; k <= 5 && k < cadena.length; k++) {
+                            dispararEventos(cadena[k], cx, cy);
+                        }
+                        // Segundo toque físico retardado por si había overlay transparente encima.
+                        setTimeout(function(x, y) {
+                            return function() {
+                                if (window.AndroidBridge) window.AndroidBridge.tapAt(x, y);
+                            };
+                        }(cx, cy), 150);
+                    } else {
+                        dispararEventos(el, cx, cy);
                     }
 
                     var videos = document.querySelectorAll('video');
