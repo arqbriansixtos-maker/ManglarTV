@@ -885,6 +885,10 @@ class MainActivity : AppCompatActivity() {
                 if (window.__ajusteReproductorInstalado) return;
                 window.__ajusteReproductorInstalado = true;
 
+                // Aplicar zoom del 80% a toda la página para que entre en pantalla
+                document.documentElement.style.zoom = '80%';
+                document.body.style.zoom = '80%';
+
                 var ajustando = false;
 
                 function ajustarReproductor() {
